@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Missão Família - Simulador de Orçamento Familiar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- TELA DE AUTENTICAÇÃO (Login / Registro) -->
+  <div id="auth-container" class="auth-overlay">
+    <div class="auth-card glass-panel">
+      <div class="auth-logo">
+        <span class="logo-emoji">🏠</span>
+        <h2>Missão Família</h2>
+        <p>Simulador de Orçamento Familiar</p>
+      </div>
+      
+      <div class="auth-tabs">
+        <button class="auth-tab-btn active" id="btn-tab-login">Entrar</button>
+        <button class="auth-tab-btn" id="btn-tab-register">Criar Conta</button>
+      </div>
+      
+      <!-- Form de Login -->
+      <form id="form-login" class="auth-form active">
+        <div class="form-group">
+          <label for="login-username">Nome de Usuário:</label>
+          <input type="text" id="login-username" class="input-modern" required placeholder="Ex: wilson" autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="login-password">Senha:</label>
+          <input type="password" id="login-password" class="input-modern" required placeholder="Sua senha" autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn-primary btn-full" style="margin-top: 10px;">Entrar na Simulação</button>
+      </form>
+      
+      <!-- Form de Registro -->
+      <form id="form-register" class="auth-form">
+        <div class="form-group">
+          <label for="reg-username">Nome de Usuário:</label>
+          <input type="text" id="reg-username" class="input-modern" required placeholder="Ex: julia" autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="reg-password">Senha:</label>
+          <input type="password" id="reg-password" class="input-modern" required placeholder="Mínimo 3 caracteres" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label for="reg-name">Nome Completo:</label>
+          <input type="text" id="reg-name" class="input-modern" required placeholder="Ex: Julia Aires">
+        </div>
+        <div class="form-group">
+          <label for="reg-role">Papel do Usuário:</label>
+          <select id="reg-role" class="select-modern">
+            <option value="participant">Participante (Desbravador)</option>
+            <option value="admin">Administrador (Clube)</option>
+          </select>
+        </div>
+        
+        <!-- Campos específicos para participante -->
+        <div id="reg-participant-fields" class="form-conditional-fields">
+          <div class="form-row-multi">
+            <div class="form-group">
+              <label for="reg-clube">Clube:</label>
+              <input type="text" id="reg-clube" class="input-modern" placeholder="Ex: Pioneiros">
+            </div>
+            <div class="form-group">
+              <label for="reg-unidade">Unidade:</label>
+              <input type="text" id="reg-unidade" class="input-modern" placeholder="Ex: Águia">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="reg-age">Idade:</label>
+            <input type="number" id="reg-age" class="input-modern" min="9" max="18" placeholder="Ex: 14">
+          </div>
+        </div>
+        
+        <!-- Campo específico para Admin -->
+        <div id="reg-admin-fields" class="form-conditional-fields" style="display: none;">
+          <div class="form-group">
+            <label for="reg-admin-code">Código de Acesso do Clube:</label>
+            <input type="password" id="reg-admin-code" class="input-modern" placeholder="Código Secreto" autocomplete="new-password">
+          </div>
+        </div>
+        
+        <button type="submit" class="btn-primary btn-full" style="margin-top: 10px;">Cadastrar e Iniciar</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- BARRA DE NAVEGAÇÃO SUPERIOR (Ferramenta de Simulação e Controle de Perfil) -->
+  <header class="app-header">
+    <div class="header-logo">
+      <span class="logo-emoji">🏠</span>
+      <div class="logo-text">
+        <h1>Missão Família</h1>
+        <span>Simulador de Orçamento Familiar</span>
+      </div>
+    </div>
+    
+    <div class="header-controls">
+      <!-- Seletor de Perfil (Para testes) -->
+      <div class="control-group" id="admin-profile-selector-group">
+        <label for="profile-selector">Perfil:</label>
+        <select id="profile-selector" class="select-modern">
+          <option value="admin">Administrador (Clube)</option>
+          <option value="participant">Participante (Desbravador)</option>
+        </select>
+      </div>
+
+      <!-- Seletor de Participante Ativo (Apenas visível se perfil for participante) -->
+      <div class="control-group" id="active-participant-group" style="display: none;">
+        <label for="participant-selector">Família:</label>
+        <select id="participant-selector" class="select-modern">
+          <!-- Populado via JS -->
+        </select>
+      </div>
+
+      <button id="btn-reset-simulator" class="btn-secondary btn-icon" title="Resetar Simulador para o Padrão" style="display: none;">
+        🔄 Resetar
+      </button>
+
+      <button id="btn-logout" class="btn-danger btn-icon btn-small" title="Sair do Sistema">
+        Sair 🚪
+      </button>
+    </div>
+  </header>
+
+  <!-- CONTAINER PRINCIPAL -->
+  <main class="main-container">
+
+    <!-- ==================== PAINEL DO ADMINISTRADOR ==================== -->
+    <section id="view-admin" class="view-section">
+      <div class="admin-grid">
+        
+        <!-- Sidebar do Admin -->
+        <aside class="admin-sidebar glass-panel">
+          <div class="admin-user-info">
+            <div class="avatar">👮</div>
+            <div>
+              <h3>Diretoria / Instrutor</h3>
+              <p>Painel de Controle</p>
+            </div>
+          </div>
+          <nav class="admin-nav">
+            <button class="admin-nav-btn active" data-tab="admin-dashboard">📊 Painel Geral & Ranking</button>
+            <button class="admin-nav-btn" data-tab="admin-campaign">⚙️ Parâmetros da Campanha</button>
+            <button class="admin-nav-btn" data-tab="admin-approvals">🔔 Fila de Aprovações <span id="badge-approvals-count" class="badge-danger" style="display:none;">0</span></button>
+            <button class="admin-nav-btn" data-tab="admin-participants">👥 Participantes</button>
+            <button class="admin-nav-btn" data-tab="admin-audit">📋 Auditoria</button>
+          </nav>
+        </aside>
+
+        <!-- Conteúdo do Admin -->
+        <div class="admin-content">
+          
+          <!-- Aba 1: Dashboard e Ranking -->
+          <div id="admin-dashboard" class="admin-tab-content active">
+            <div class="content-header">
+              <h2>Visão Geral da Campanha</h2>
+              <p>Monitore o desempenho dos desbravadores em tempo real.</p>
+            </div>
+            
+            <div class="stats-cards-grid">
+              <div class="stat-card glass-panel">
+                <div class="stat-icon purple">👥</div>
+                <div class="stat-data">
+                  <h4 id="stat-total-participants">0</h4>
+                  <p>Participantes Ativos</p>
+                </div>
+              </div>
+              <div class="stat-card glass-panel">
+                <div class="stat-icon green">💰</div>
+                <div class="stat-data">
+                  <h4 id="stat-avg-networth">R$ 0</h4>
+                  <p>Patrimônio Médio</p>
+                </div>
+              </div>
+              <div class="stat-card glass-panel">
+                <div class="stat-icon red">❤️</div>
+                <div class="stat-data">
+                  <h4 id="stat-avg-health">0%</h4>
+                  <p>Saúde Média</p>
+                </div>
+              </div>
+              <div class="stat-card glass-panel">
+                <div class="stat-icon yellow">😊</div>
+                <div class="stat-data">
+                  <h4 id="stat-avg-happiness">0%</h4>
+                  <p>Felicidade Média</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tabela de Ranking -->
+            <div class="glass-panel table-panel">
+              <div class="table-header">
+                <h3>🏆 Classificação Geral (Ranking)</h3>
+                <div class="table-actions">
+                  <button id="btn-export-pdf" class="btn-secondary btn-small">📥 Exportar PDF</button>
+                  <button id="btn-export-excel" class="btn-secondary btn-small">📥 Exportar Planilha</button>
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="table-modern" id="table-ranking">
+                  <thead>
+                    <tr>
+                      <th>Pos.</th>
+                      <th>Participante</th>
+                      <th>Unidade / Clube</th>
+                      <th>Mês</th>
+                      <th>❤️ Saúde</th>
+                      <th>😊 Feliz.</th>
+                      <th>🧹 Limp.</th>
+                      <th>💰 Patr. Líquido</th>
+                      <th>🎯 Objetivos</th>
+                      <th>⭐ Pontos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- Populado via JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Aba 2: Parâmetros da Campanha (RF-008 a RF-021) -->
+          <div id="admin-campaign" class="admin-tab-content">
+            <div class="content-header">
+              <h2>Configuração do Cenário</h2>
+              <p>Ajuste as regras de negócio do simulador. Modificações salvam e registram na auditoria.</p>
+            </div>
+
+            <form id="form-campaign-config" class="config-form-grid">
+              
+              <div class="glass-panel form-section">
+                <h3>⚙️ Geral & Dificuldade</h3>
+                <div class="form-group">
+                  <label for="cfg-camp-name">Nome da Campanha:</label>
+                  <input type="text" id="cfg-camp-name" class="input-modern" required>
+                </div>
+                <div class="form-group">
+                  <label for="cfg-camp-difficulty">Dificuldade da Campanha:</label>
+                  <select id="cfg-camp-difficulty" class="select-modern">
+                    <option value="facil">Fácil (Mais renda, menos eventos)</option>
+                    <option value="medio">Médio (Padrão balanceado)</option>
+                    <option value="dificil">Difícil (Custos elevados, alta frequência de eventos)</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="cfg-camp-duration">Duração (Semanas/Meses Simulados):</label>
+                  <input type="number" id="cfg-camp-duration" class="input-modern" min="4" max="24" required>
+                </div>
+              </div>
+
+              <div class="glass-panel form-section">
+                <h3>💵 Salário & Despesas (%)</h3>
+                <div class="form-group">
+                  <label for="cfg-camp-salary">Salário Base Inicial (R$):</label>
+                  <input type="number" id="cfg-camp-salary" class="input-modern" min="1000" max="8000" required>
+                </div>
+                <div class="form-row-multi">
+                  <div class="form-group">
+                    <label for="cfg-perc-food">Alimentação (%):</label>
+                    <input type="number" id="cfg-perc-food" class="input-modern" min="0" max="50">
+                  </div>
+                  <div class="form-group">
+                    <label for="cfg-perc-housing">Moradia (%):</label>
+                    <input type="number" id="cfg-perc-housing" class="input-modern" min="0" max="50">
+                  </div>
+                  <div class="form-group">
+                    <label for="cfg-perc-transport">Transporte (%):</label>
+                    <input type="number" id="cfg-perc-transport" class="input-modern" min="0" max="50">
+                  </div>
+                </div>
+                <div class="form-row-multi">
+                  <div class="form-group">
+                    <label for="cfg-perc-health">Saúde/Higiene (%):</label>
+                    <input type="number" id="cfg-perc-health" class="input-modern" min="0" max="50">
+                  </div>
+                  <div class="form-group">
+                    <label for="cfg-perc-education">Educação (%):</label>
+                    <input type="number" id="cfg-perc-education" class="input-modern" min="0" max="50">
+                  </div>
+                  <div class="form-group">
+                    <label for="cfg-perc-leisure">Lazer (%):</label>
+                    <input type="number" id="cfg-perc-leisure" class="input-modern" min="0" max="50">
+                  </div>
+                </div>
+              </div>
+
+              <div class="glass-panel form-section">
+                <h3>⚡ Juros, Multas & Empréstimos</h3>
+                <div class="form-row-multi">
+                  <div class="form-group">
+                    <label for="cfg-fee-late">Multa de Atraso (%):</label>
+                    <input type="number" id="cfg-fee-late" class="input-modern" step="0.5" min="0" max="10">
+                  </div>
+                  <div class="form-group">
+                    <label for="cfg-interest-monthly">Juros Mensais (%):</label>
+                    <input type="number" id="cfg-interest-monthly" class="input-modern" step="0.1" min="0" max="10">
+                  </div>
+                </div>
+                <div class="form-row-multi">
+                  <div class="form-group">
+                    <label for="cfg-loan-min-rate">Taxa Empréstimo Mín (%):</label>
+                    <input type="number" id="cfg-loan-min-rate" class="input-modern" step="0.1" min="0" max="10">
+                  </div>
+                  <div class="form-group">
+                    <label for="cfg-loan-max-rate">Taxa Empréstimo Máx (%):</label>
+                    <input type="number" id="cfg-loan-max-rate" class="input-modern" step="0.1" min="0" max="15">
+                  </div>
+                </div>
+                <div class="form-row-multi">
+                  <div class="form-group">
+                    <label for="cfg-loan-min-term">Parcelas Mín:</label>
+                    <input type="number" id="cfg-loan-min-term" class="input-modern" min="1">
+                  </div>
+                  <div class="form-group">
+                    <label for="cfg-loan-max-term">Parcelas Máx:</label>
+                    <input type="number" id="cfg-loan-max-term" class="input-modern" min="2">
+                  </div>
+                </div>
+              </div>
+
+              <div class="glass-panel form-section">
+                <h3>⚖️ Pesos de Pontuação (%)</h3>
+                <div class="form-row-multi">
+                  <div class="form-group">
+                    <label for="cfg-w-health">❤️ Saúde Weight:</label>
+                    <input type="number" id="cfg-w-health" class="input-modern" min="0" max="100">
+                  </div>
+                  <div class="form-group">
+                    <label for="cfg-w-happiness">😊 Felicidade Weight:</label>
+                    <input type="number" id="cfg-w-happiness" class="input-modern" min="0" max="100">
+                  </div>
+                </div>
+                <div class="form-row-multi">
+                  <div class="form-group">
+                    <label for="cfg-w-finance">💰 Finanças Weight:</label>
+                    <input type="number" id="cfg-w-finance" class="input-modern" min="0" max="100">
+                  </div>
+                  <div class="form-group">
+                    <label for="cfg-w-cleanliness">🧹 Limpeza Weight:</label>
+                    <input type="number" id="cfg-w-cleanliness" class="input-modern" min="0" max="100">
+                  </div>
+                </div>
+                <div class="form-actions-full">
+                  <button type="submit" class="btn-primary">Salvar Parâmetros</button>
+                </div>
+              </div>
+
+            </form>
+          </div>
+
+          <!-- Aba 3: Fila de Aprovações (RF-012 e RF-037) -->
+          <div id="admin-approvals" class="admin-tab-content">
+            <div class="content-header">
+              <h2>Fila de Aprovações Pendentes</h2>
+              <p>Responda às solicitações de empréstimos e propostas de renda extra dos desbravadores.</p>
+            </div>
+
+            <div class="approvals-grid">
+              
+              <!-- Cartões de Empréstimos -->
+              <div class="glass-panel approval-box">
+                <h3>🏦 Solicitações de Empréstimo Bancário</h3>
+                <div id="loans-approval-list" class="approval-cards-container">
+                  <!-- Populado via JS -->
+                  <p class="empty-state-text">Nenhuma solicitação pendente no momento.</p>
+                </div>
+              </div>
+
+              <!-- Cartões de Renda Extra -->
+              <div class="glass-panel approval-box">
+                <h3>💼 Propostas de Renda Extra Personalizada</h3>
+                <div id="income-approval-list" class="approval-cards-container">
+                  <!-- Populado via JS -->
+                  <p class="empty-state-text">Nenhuma proposta pendente no momento.</p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Aba 4: Cadastro de Alunos -->
+          <div id="admin-participants" class="admin-tab-content">
+            <div class="content-header">
+              <h2>Cadastro de Participantes</h2>
+              <p>Adicione novos desbravadores na simulação e acompanhe suas fichas cadastrais.</p>
+            </div>
+
+            <div class="participant-management-grid">
+              
+              <div class="glass-panel form-section">
+                <h3>📝 Adicionar Novo Participante</h3>
+                <form id="form-register-participant">
+                  <div class="form-group">
+                    <label for="reg-part-name">Nome Completo:</label>
+                    <input type="text" id="reg-part-name" class="input-modern" required placeholder="Ex: Wilson Aires Junior">
+                  </div>
+                  <div class="form-row-multi">
+                    <div class="form-group">
+                      <label for="reg-part-clube">Clube:</label>
+                      <input type="text" id="reg-part-clube" class="input-modern" required placeholder="Ex: Pioneiros">
+                    </div>
+                    <div class="form-group">
+                      <label for="reg-part-unidade">Unidade:</label>
+                      <input type="text" id="reg-part-unidade" class="input-modern" required placeholder="Ex: Águia">
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="reg-part-age">Idade:</label>
+                    <input type="number" id="reg-part-age" class="input-modern" min="9" max="18" required placeholder="Ex: 14">
+                  </div>
+                  <button type="submit" class="btn-primary btn-full">Cadastrar e Gerar Família</button>
+                </form>
+              </div>
+
+              <div class="glass-panel table-panel">
+                <h3>👥 Participantes na Campanha</h3>
+                <div class="table-responsive">
+                  <table class="table-modern" id="table-participants-list">
+                    <thead>
+                      <tr>
+                        <th>Nome</th>
+                        <th>Clube/Unidade</th>
+                        <th>Idade</th>
+                        <th>Família Tipo</th>
+                        <th>Mês Inicial</th>
+                        <th>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <!-- Populado via JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Aba 5: Auditoria (Regra Geral do Painel) -->
+          <div id="admin-audit" class="admin-tab-content">
+            <div class="content-header">
+              <h2>Histórico de Auditoria do Diretor</h2>
+              <p>Registro de modificações de regras e parâmetros da campanha ativa para fins de transparência.</p>
+            </div>
+
+            <div class="glass-panel table-panel">
+              <div class="table-responsive">
+                <table class="table-modern" id="table-audit-logs">
+                  <thead>
+                    <tr>
+                      <th>Data/Hora</th>
+                      <th>Usuário</th>
+                      <th>Ação Realizada</th>
+                      <th>Detalhamento</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- Populado via JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- ==================== AMBIENTE DO PARTICIPANTE ==================== -->
+    <section id="view-participant" class="view-section" style="display: none;">
+      
+      <!-- SUB-HEADER DO JOGADOR (Indicadores Familiares) -->
+      <div class="participant-status-bar glass-panel">
+        
+        <div class="user-details">
+          <h2 id="player-family-name">Família Silva</h2>
+          <span class="badge-role" id="player-family-desc">Média (4 moradores)</span>
+          <span class="badge-week" id="player-calendar-week">📅 Mês 1 / 12</span>
+        </div>
+
+        <!-- Indicadores (❤️, 😊, 🧹, 💰) -->
+        <div class="indicators-container">
+          <div class="indicator-box" title="Saúde Física da Família">
+            <div class="indicator-icon">❤️</div>
+            <div class="indicator-meta">
+              <span class="indicator-label">Saúde</span>
+              <div class="progress-bar-wrapper">
+                <div class="progress-bar health" id="bar-indicator-health" style="width: 80%;"></div>
+              </div>
+              <span class="indicator-value" id="val-indicator-health">80%</span>
+            </div>
+          </div>
+
+          <div class="indicator-box" title="Felicidade e Bem-estar Emocional">
+            <div class="indicator-icon">😊</div>
+            <div class="indicator-meta">
+              <span class="indicator-label">Felicidade</span>
+              <div class="progress-bar-wrapper">
+                <div class="progress-bar happiness" id="bar-indicator-happiness" style="width: 85%;"></div>
+              </div>
+              <span class="indicator-value" id="val-indicator-happiness">85%</span>
+            </div>
+          </div>
+
+          <div class="indicator-box" title="Higiene e Limpeza da Residência">
+            <div class="indicator-icon">🧹</div>
+            <div class="indicator-meta">
+              <span class="indicator-label">Limpeza</span>
+              <div class="progress-bar-wrapper">
+                <div class="progress-bar cleanliness" id="bar-indicator-cleanliness" style="width: 70%;"></div>
+              </div>
+              <span class="indicator-value" id="val-indicator-cleanliness">70%</span>
+            </div>
+          </div>
+
+          <div class="indicator-box" title="Situação Financeira Geral">
+            <div class="indicator-icon">💰</div>
+            <div class="indicator-meta">
+              <span class="indicator-label">Finanças</span>
+              <div class="progress-bar-wrapper">
+                <div class="progress-bar finance" id="bar-indicator-finance" style="width: 65%;"></div>
+              </div>
+              <span class="indicator-value" id="val-indicator-finance">65%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recursos Disponíveis -->
+        <div class="player-funds">
+          <div class="fund-item">
+            <span>Saldo Bancário:</span>
+            <strong id="player-cash-val" class="green-text">R$ 800,00</strong>
+          </div>
+          <div class="fund-item">
+            <span>Reserva de Emergência:</span>
+            <strong id="player-reserve-val" class="blue-text">R$ 200,00</strong>
+          </div>
+          <div class="fund-item">
+            <span>Salário Mensal:</span>
+            <strong id="player-salary-val">R$ 2.500,00</strong>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- GRID DA CASA VIRTUAL (Navegação visual por Ambientes - RF-084) -->
+      <div class="house-layout-grid">
+        
+        <div class="room-card glass-panel clickable" data-modal="modal-hall">
+          <span class="room-emoji">🏠</span>
+          <h3>Sala da Família</h3>
+          <p>Notificações, alertas de saúde e fechamento mensal.</p>
+        </div>
+
+        <div class="room-card glass-panel clickable" data-modal="modal-bank">
+          <span class="room-emoji">🏦</span>
+          <h3>Banco Virtual</h3>
+          <p>Pedir empréstimo, guardar reserva de emergência e extrato.</p>
+        </div>
+
+        <div class="room-card glass-panel clickable" data-modal="modal-bills">
+          <span class="room-emoji">📋</span>
+          <h3>Contas a Pagar</h3>
+          <p>Ver contas mensais e pagar faturas atrasadas.</p>
+          <span id="badge-unpaid-bills" class="badge-danger counter-badge" style="display:none;">0</span>
+        </div>
+
+        <div class="room-card glass-panel clickable" data-modal="modal-chores">
+          <span class="room-emoji">🧹</span>
+          <h3>Tarefas Domésticas</h3>
+          <p>Limpar casa, cozinhar, lavar louça e praticar lazer.</p>
+          <div class="energy-energy">
+            <span>Energia: <strong id="val-player-energy">100%</strong></span>
+          </div>
+        </div>
+
+        <div class="room-card glass-panel clickable" data-modal="modal-market">
+          <span class="room-emoji">🛒</span>
+          <h3>Supermercado</h3>
+          <p>Comprar comida básica, equilibrada ou premium.</p>
+        </div>
+
+        <div class="room-card glass-panel clickable" data-modal="modal-pharmacy">
+          <span class="room-emoji">💊</span>
+          <h3>Farmácia</h3>
+          <p>Comprar remédios para curar doenças da família.</p>
+          <span id="badge-sick-family" class="badge-danger counter-badge" style="display:none;">🤒</span>
+        </div>
+
+        <div class="room-card glass-panel clickable" data-modal="modal-investments">
+          <span class="room-emoji">📈</span>
+          <h3>Investimentos</h3>
+          <p>Investir em Poupança, CDB, Fundo de ações ou Tesouro.</p>
+        </div>
+
+        <div class="room-card glass-panel clickable" data-modal="modal-work">
+          <span class="room-emoji">💼</span>
+          <h3>Trabalho & Renda Extra</h3>
+          <p>Venda de doces, lavar carros ou enviar propostas.</p>
+        </div>
+
+        <div class="room-card glass-panel clickable" data-modal="modal-reports">
+          <span class="room-emoji">📊</span>
+          <h3>Relatório & Evolução</h3>
+          <p>Visualizar gráficos de linha do tempo e pontuação final.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== MODAIS DE AMBIENTES (CASA VIRTUAL) ==================== -->
+
+  <!-- MODAL 1: SALA PRINCIPAL / HALL -->
+  <div class="modal-overlay" id="modal-hall">
+    <div class="modal-card glass-panel large-modal">
+      <div class="modal-header">
+        <h2>🏠 Sala da Família & Controle Geral</h2>
+        <button class="btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body scrollable">
+        <div class="hall-layout">
+          
+          <!-- Lado Esquerdo: Narrador e Eventos -->
+          <div class="hall-left">
+            <div class="character-narrator-bubble">
+              <div class="narrator-avatar">🧓</div>
+              <div class="narrator-speech">
+                <h4 id="narrator-title">Conselheiro Virtual:</h4>
+                <p id="narrator-text">Olá! Eu sou o seu conselheiro familiar. Meu dever é te guiar no planejamento deste mês. Certifique-se de que a dispensa está abastecida e limpe a cozinha para evitar ratos e baratas!</p>
+              </div>
+            </div>
+
+            <!-- Caixa de Doenças e Eventos Ativos -->
+            <div class="alerts-section">
+              <h3>🚨 Status da Família & Alertas</h3>
+              <div id="hall-active-alerts-container">
+                <!-- Populado via JS (doenças ou eventos ativos) -->
+                <p class="success-text">✔️ Tudo sob controle na residência! Nenhum evento de crise ou doença ativa.</p>
+              </div>
+            </div>
+
+            <!-- Botão de Próximo Mês (RF-071) -->
+            <div class="action-next-month">
+              <div class="next-month-card">
+                <h4>📅 Fechamento Mensal</h4>
+                <p>Quando concluir todas as compras, tarefas e investimentos do mês, clique no botão abaixo para rodar o fechamento de contas do período.</p>
+                <button id="btn-advance-month" class="btn-primary btn-large btn-full">
+                  ➡️ Finalizar Mês & Receber Salário
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Lado Direito: Histórico de Notificações Recentes -->
+          <div class="hall-right">
+            <h3>🔔 Notificações Recentes</h3>
+            <div class="notifications-feed" id="player-notifications-list">
+              <!-- Populado via JS -->
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: BANCO VIRTUAL -->
+  <div class="modal-overlay" id="modal-bank">
+    <div class="modal-card glass-panel large-modal">
+      <div class="modal-header">
+        <h2>🏦 Banco da Família (Crédito & Reserva)</h2>
+        <button class="btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body scrollable">
+        <div class="bank-grid">
+          
+          <!-- Coluna 1: Reserva de Emergência -->
+          <div class="bank-section-box">
+            <h3>🛡️ Reserva de Emergência</h3>
+            <p>Guarde recursos adicionais aqui. Em caso de contas vencidas sem saldo na conta corrente, o sistema debitará automaticamente da reserva para evitar juros pesados.</p>
+            
+            <div class="reserve-display">
+              <span>Valor na Reserva:</span>
+              <strong id="bank-reserve-val" class="blue-text">R$ 200,00</strong>
+            </div>
+
+            <div class="reserve-actions-form">
+              <div class="form-group">
+                <label for="input-reserve-amount">Valor (R$):</label>
+                <input type="number" id="input-reserve-amount" class="input-modern" min="1" placeholder="Ex: 100">
+              </div>
+              <div class="form-row-multi">
+                <button id="btn-reserve-deposit" class="btn-primary">📥 Depositar</button>
+                <button id="btn-reserve-withdraw" class="btn-secondary">📤 Resgatar</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Coluna 2: Solicitar Empréstimo (RF-032) -->
+          <div class="bank-section-box">
+            <h3>💳 Solicitar Empréstimo Pessoal</h3>
+            <p>Se as despesas superarem suas receitas, simule e envie uma proposta de crédito para aprovação da diretoria.</p>
+            
+            <form id="form-request-loan">
+              <div class="form-group">
+                <label for="loan-amount">Valor Solicitado (R$):</label>
+                <input type="number" id="loan-amount" class="input-modern" min="200" max="4000" placeholder="Min R$ 200 / Max R$ 4000" required>
+              </div>
+              <div class="form-group">
+                <label for="loan-term">Número de Parcelas (Meses):</label>
+                <input type="number" id="loan-term" class="input-modern" min="3" max="12" placeholder="Ex: 6 parcelas" required>
+              </div>
+              <div class="form-group">
+                <label for="loan-justification">Justificativa Financeira:</label>
+                <textarea id="loan-justification" class="textarea-modern" placeholder="Escreva o motivo (ex: pagar conta de luz atrasada, comprar remédios)" required></textarea>
+              </div>
+
+              <!-- Simulador de Parcela em Tempo Real -->
+              <div class="loan-simulation-preview" id="loan-preview-box" style="display:none;">
+                <p>Taxa estimada: <strong id="preview-rate">5% a.m.</strong></p>
+                <p>Parcela mensal: <strong id="preview-pmt" class="red-text">R$ 0,00</strong></p>
+                <p>Total a pagar: <strong id="preview-total">R$ 0,00</strong></p>
+              </div>
+
+              <button type="submit" class="btn-danger btn-full">Enviar Proposta para o Diretor</button>
+            </form>
+          </div>
+
+          <!-- Coluna 3: Empréstimos Ativos -->
+          <div class="bank-section-box full-width-desktop">
+            <h3>📈 Empréstimos em Andamento</h3>
+            <div class="table-responsive">
+              <table class="table-modern" id="table-active-loans">
+                <thead>
+                  <tr>
+                    <th>Data Aprov.</th>
+                    <th>Valor Inicial</th>
+                    <th>Juros</th>
+                    <th>Termo Pago</th>
+                    <th>Parcela Mensal</th>
+                    <th>Total Restante</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Populado via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: MERCADO (Alimentação) -->
+  <div class="modal-overlay" id="modal-market">
+    <div class="modal-card glass-panel">
+      <div class="modal-header">
+        <h2>🛒 Supermercado Familiar</h2>
+        <button class="btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body scrollable">
+        <p class="intro-p">Compre alimentos para a família. A falta de alimentação adequada reduz drasticamente a Saúde ❤️ e Felicidade 😊.</p>
+        
+        <div class="market-options-grid">
+          
+          <div class="market-card glass-panel">
+            <span class="market-emoji">🍔</span>
+            <h3>Básica (Ultraprocessada)</h3>
+            <p class="description">Alimentos baratos, industrializados e com muito açúcar/conservantes.</p>
+            <div class="impacts">
+              <span class="red-text">Saúde: -10%</span>
+              <span class="red-text">Felicidade: -3%</span>
+            </div>
+            <div class="price-action">
+              <span class="price" id="val-price-food-basic">R$ 150,00</span>
+              <button class="btn-primary btn-buy-food" data-option="basic">Comprar</button>
+            </div>
+          </div>
+
+          <div class="market-card glass-panel selected">
+            <span class="market-emoji">🥗</span>
+            <h3>Equilibrada (Saudável)</h3>
+            <p class="description">Arroz, feijão, vegetais frescos, ovos, frutas e legumes.</p>
+            <div class="impacts">
+              <span class="green-text">Saúde: +8%</span>
+              <span class="green-text">Felicidade: +5%</span>
+            </div>
+            <div class="price-action">
+              <span class="price" id="val-price-food-healthy">R$ 300,00</span>
+              <button class="btn-primary btn-buy-food" data-option="healthy">Comprar</button>
+            </div>
+          </div>
+
+          <div class="market-card glass-panel">
+            <span class="market-emoji">🥩</span>
+            <h3>Premium (Orgânica)</h3>
+            <p class="description">Carnes nobres, orgânicos selecionados e itens de confeitaria premium.</p>
+            <div class="impacts">
+              <span class="green-text">Saúde: +15%</span>
+              <span class="green-text">Felicidade: +12%</span>
+            </div>
+            <div class="price-action">
+              <span class="price" id="val-price-food-premium">R$ 500,00</span>
+              <button class="btn-primary btn-buy-food" data-option="premium">Comprar</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 4: FARMÁCIA -->
+  <div class="modal-overlay" id="modal-pharmacy">
+    <div class="modal-card glass-panel">
+      <div class="modal-header">
+        <h2>💊 Farmácia Municipal</h2>
+        <button class="btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body scrollable">
+        <p class="intro-p">Compre medicamentos prescritos para curar as doenças ativas dos moradores. Deixar familiares doentes reduz a saúde e felicidade continuamente a cada virada de mês.</p>
+        
+        <div class="pharmacy-layout">
+          <h3>🤒 Doenças Ativas na Família</h3>
+          <div class="diseases-purchase-list" id="pharmacy-diseases-list">
+            <!-- Populado via JS -->
+            <p class="success-text">Toda a família está saudável! Nenhuma receita médica pendente.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 5: TRABALHO & RENDA EXTRA (RF-037) -->
+  <div class="modal-overlay" id="modal-work">
+    <div class="modal-card glass-panel large-modal">
+      <div class="modal-header">
+        <h2>💼 Trabalho & Renda Extra</h2>
+        <button class="btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body scrollable">
+        <div class="work-grid">
+          
+          <!-- Rendas Extras Padrão -->
+          <div class="work-col">
+            <h3>🛠️ Atividades de Renda Extra Disponíveis</h3>
+            <p>Selecione uma atividade para realizar. Realizar renda extra consome sua energia (limite por semana/mês).</p>
+            <div class="extra-income-list" id="work-income-activities">
+              <!-- Populado via JS -->
+            </div>
+          </div>
+
+          <!-- Sugerir Renda Extra -->
+          <div class="work-col glass-panel custom-income-box">
+            <h3>💡 Propor Nova Renda Extra</h3>
+            <p>Escreva uma atividade honesta de renda extra que você planeja fazer na vida real (ex: lavar calçadas, fazer doces). O Diretor analisará e creditará o valor se aprovado!</p>
+            
+            <form id="form-custom-income">
+              <div class="form-group">
+                <label for="custom-inc-name">Nome da Atividade:</label>
+                <input type="text" id="custom-inc-name" class="input-modern" placeholder="Ex: Lavagem Ecológica de Calçada" required>
+              </div>
+              <div class="form-group">
+                <label for="custom-inc-desc">Como você fará na prática?</label>
+                <textarea id="custom-inc-desc" class="textarea-modern" placeholder="Descreva os materiais, tempo e método..." required></textarea>
+              </div>
+              <div class="form-group">
+                <label for="custom-inc-reward">Estimativa de Ganho (R$):</label>
+                <input type="number" id="custom-inc-reward" class="input-modern" min="50" max="500" placeholder="Ex: R$ 150" required>
+              </div>
+              <button type="submit" class="btn-primary btn-full">Enviar Proposta para a Diretoria</button>
+            </form>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 6: INVESTIMENTOS (RF-035) -->
+  <div class="modal-overlay" id="modal-investments">
+    <div class="modal-card glass-panel large-modal">
+      <div class="modal-header">
+        <h2>📈 Investimentos Financeiros</h2>
+        <button class="btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body scrollable">
+        <div class="investments-layout">
+          
+          <!-- Carteira Atual -->
+          <div class="portfolio-summary-card glass-panel">
+            <h3>💰 Sua Carteira de Investimentos</h3>
+            <div class="portfolio-grid">
+              <div class="portfolio-item">
+                <span>Poupança:</span>
+                <strong id="port-poupanca">R$ 0,00</strong>
+              </div>
+              <div class="portfolio-item">
+                <span>CDB:</span>
+                <strong id="port-cdb">R$ 0,00</strong>
+              </div>
+              <div class="portfolio-item">
+                <span>Tesouro Selic:</span>
+                <strong id="port-tesouro">R$ 0,00</strong>
+              </div>
+              <div class="portfolio-item">
+                <span>Fundo Ações:</span>
+                <strong id="port-fundo">R$ 0,00</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Produtos Disponíveis -->
+          <h3>🛒 Produtos de Investimento Simulados</h3>
+          <div class="investment-products-grid" id="investments-products-container">
+            <!-- Populado via JS -->
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 7: CONTAS A PAGAR -->
+  <div class="modal-overlay" id="modal-bills">
+    <div class="modal-card glass-panel large-modal">
+      <div class="modal-header">
+        <h2>📋 Contas e Despesas da Família</h2>
+        <button class="btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body scrollable">
+        <div class="bills-layout-grid">
+          
+          <!-- Contas do Mês Corrente -->
+          <div class="bills-section">
+            <h3>📅 Faturas do Mês Atual (A Vencer)</h3>
+            <p>Contas de consumo padrão e despesas geradas automaticamente. Pague antes do final do mês para evitar multas.</p>
+            <div class="bills-list" id="unpaid-bills-container">
+              <!-- Populado via JS -->
+            </div>
+          </div>
+
+          <!-- Contas Atrasadas -->
+          <div class="bills-section">
+            <h3>🚨 Contas em Atraso (Com Multa e Juros)</h3>
+            <p>Atrasar contas gera multas fixas e juros diários acumulativos, além de reduzir a felicidade familiar ❤️.</p>
+            <div class="bills-list" id="overdue-bills-container">
+              <!-- Populado via JS -->
+              <p class="success-text">Parabéns! Nenhuma fatura pendente ou atrasada.</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 8: TAREFAS DOMÉSTICAS -->
+  <div class="modal-overlay" id="modal-chores">
+    <div class="modal-card glass-panel large-modal">
+      <div class="modal-header">
+        <h2>🧹 Organização e Rotina Familiar</h2>
+        <button class="btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body scrollable">
+        <p class="intro-p">Distribua tarefas ao longo do mês. Manter a casa limpa e praticar exercícios/lazer previne doenças e aumenta a Felicidade da família. Atenção ao limite de energia!</p>
+        
+        <div class="chores-grid" id="chores-container">
+          <!-- Populado via JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 9: RELATÓRIOS E EVOLUÇÃO (LINHA DO TEMPO) -->
+  <div class="modal-overlay" id="modal-reports">
+    <div class="modal-card glass-panel large-modal">
+      <div class="modal-header">
+        <h2>📊 Relatórios de Desempenho e Histórico</h2>
+        <button class="btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body scrollable">
+        
+        <!-- Pontuação e Conquistas Rápidas -->
+        <div class="report-top-summary">
+          <div class="score-box glass-panel">
+            <h3>⭐ Pontuação Estimada</h3>
+            <h2 id="report-estimated-score">0</h2>
+            <p>Com base em indicadores e metas concluídas</p>
+          </div>
+          
+          <div class="goals-box glass-panel">
+            <h3>🎯 Status dos Objetivos</h3>
+            <ul class="goals-checklist" id="report-goals-checklist">
+              <!-- Populado via JS -->
+            </ul>
+          </div>
+        </div>
+
+        <!-- Linha do Tempo e Gráficos da Evolução (RF-077) -->
+        <div class="timeline-section">
+          <h3>📈 Linha do Tempo da Evolução Familiar</h3>
+          <p>Veja como suas escolhas financeiras e de saúde impactaram a família mês a mês.</p>
+          
+          <div class="table-responsive">
+            <table class="table-modern" id="table-timeline-history">
+              <thead>
+                <tr>
+                  <th>Mês</th>
+                  <th>❤️ Saúde</th>
+                  <th>😊 Feliz.</th>
+                  <th>🧹 Limp.</th>
+                  <th>💰 Patr. Líquido</th>
+                  <th>💳 Dívida Total</th>
+                  <th>💵 Saldo Corrente</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Populado via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DE OPERAÇÃO DE INVESTIMENTO (DEPÓSITO/RETIRADA) -->
+  <div class="modal-overlay" id="modal-investment-action" style="z-index: 1100;">
+    <div class="modal-card glass-panel small-modal">
+      <div class="modal-header">
+        <h2 id="inv-action-title">Aplicar Capital</h2>
+        <button class="btn-close-modal" id="btn-close-inv-action">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="inv-action-desc">Defina o montante para aplicação no produto financeiro.</p>
+        <div class="form-group">
+          <label for="inv-action-amount">Montante (R$):</label>
+          <input type="number" id="inv-action-amount" class="input-modern" min="1" placeholder="Ex: 500" required>
+        </div>
+        <div class="form-row-multi">
+          <button id="btn-inv-submit" class="btn-primary btn-full">Confirmar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPTS -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>

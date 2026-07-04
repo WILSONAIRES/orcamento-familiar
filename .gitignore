@@ -1,0 +1,10 @@
+# Dependências do Node
+node_modules/
+
+# Banco de dados de testes locais
+db.json
+
+# Sistema e variáveis de ambiente local
+.env
+.DS_Store
+Thumbs.db

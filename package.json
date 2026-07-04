@@ -1,0 +1,26 @@
+{
+  "name": "missao-familia-simulador",
+  "version": "1.0.0",
+  "description": "Simulador de Orçamento Familiar para Desbravadores com Banco de Dados Supabase e Vercel",
+  "main": "api/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node api/index.js"
+  },
+  "keywords": [
+    "simulador",
+    "desbravadores",
+    "educacao-financeira",
+    "supabase",
+    "vercel"
+  ],
+  "author": "Wilson Aires",
+  "license": "ISC",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.31.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.0"
+  }
+}

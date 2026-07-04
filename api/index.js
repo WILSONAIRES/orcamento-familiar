@@ -1,0 +1,1103 @@
+/**
+ * Missão Família - API Serverless Express
+ * Roteador central compatível com Vercel Serverless Functions
+ */
+
+import express from 'express';
+import cors from 'cors';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+import { db } from './db.js';
+import { 
+  INITIAL_DIFFICULTIES, 
+  DEFAULT_EXTRA_INCOME_ACTIVITIES, 
+  DEFAULT_DISEASES, 
+  DEFAULT_EVENTS, 
+  DEFAULT_TASKS, 
+  DEFAULT_INVESTMENT_PRODUCTS, 
+  PRECONFIGURED_FAMILIES,
+  DEFAULT_CAMPAIGN_GOALS 
+} from '../mockData.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+const PORT = process.env.PORT || 5173;
+const SECRET_KEY = process.env.JWT_SECRET || 'missao_familia_secret_key_desbravadores';
+const ADMIN_SECURITY_CODE = 'DESBRAVADORES';
+
+app.use(cors());
+app.use(express.json());
+
+// --- MIDDLEWARE DE AUTENTICAÇÃO JWT ---
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) return res.status(401).json({ message: 'Token de autenticação não fornecido.' });
+
+  jwt.verify(token, SECRET_KEY, (err, decoded) => {
+    if (err) return res.status(403).json({ message: 'Sessão expirada ou token inválido.' });
+    req.user = decoded;
+    next();
+  });
+}
+
+// Middleware de validação do Admin
+function requireAdmin(req, res, next) {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Acesso negado. Restrito a administradores.' });
+  }
+  next();
+}
+
+// --- ROTAS DA API DE AUTENTICAÇÃO ---
+
+// Registro (Cadastro) de Usuários
+app.post('/api/auth/register', async (req, res) => {
+  const { username, password, role, name, clube, unidade, age, adminCode } = req.body;
+
+  if (!username || !password || !role || !name) {
+    return res.status(400).json({ message: 'Preencha todos os campos obrigatórios.' });
+  }
+
+  try {
+    // Validação de Admin
+    if (role === 'admin') {
+      if (adminCode !== ADMIN_SECURITY_CODE) {
+        return res.status(400).json({ message: 'Código de acesso do clube inválido para criação de Administrador.' });
+      }
+    }
+
+    // Verificar se usuário existe no banco (Supabase/Local JSON)
+    const existingUser = await db.getUser(username);
+    if (existingUser) {
+      return res.status(400).json({ message: 'Nome de usuário já está em uso.' });
+    }
+
+    const userId = 'user_' + Date.now();
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const newUser = {
+      id: userId,
+      username: username.toLowerCase(),
+      password_hash: passwordHash,
+      role,
+      name,
+      clube: clube || null,
+      unidade: unidade || null,
+      age: age ? parseInt(age) : null
+    };
+
+    // Salvar Usuário no Banco
+    await db.createUser(newUser);
+
+    // Se for Participante, criar registro do jogo
+    if (role === 'participant') {
+      const activeCampaign = await db.getActiveCampaign();
+      if (!activeCampaign) {
+        return res.status(500).json({ message: 'Não há nenhuma campanha ativa configurada no momento. Solicite ao Diretor.' });
+      }
+
+      const diff = INITIAL_DIFFICULTIES[activeCampaign.difficulty];
+      const familyTemplate = PRECONFIGURED_FAMILIES.find(f => f.id === activeCampaign.familyTypeId) || PRECONFIGURED_FAMILIES[1];
+
+      const baseSalary = activeCampaign.salaryType === 'fixed' 
+        ? activeCampaign.fixedSalary 
+        : Math.floor(activeCampaign.minSalary + Math.random() * (activeCampaign.maxSalary - activeCampaign.minSalary));
+
+      const finalSalary = Math.round(baseSalary * diff.incomeMultiplier);
+      const finalBalance = Math.round(diff.startingBalance * diff.incomeMultiplier);
+
+      const participantId = 'part_' + Date.now();
+
+      // Gerar faturas do primeiro mês
+      const bills = [];
+      const sizeMult = familyTemplate.baseExpensesMultiplier;
+      
+      activeCampaign.accountsConfig.forEach(cfg => {
+        if (cfg.enabled) {
+          const val = cfg.minVal + Math.random() * (cfg.maxVal - cfg.minVal);
+          bills.push({
+            id: 'bill_' + cfg.id + '_1_' + Math.random().toString(36).substr(2, 4),
+            type: cfg.id,
+            name: cfg.name,
+            value: Math.round(val * sizeMult * diff.costMultiplier),
+            dueWeek: 1
+          });
+        }
+      });
+
+      const categories = [
+        { id: 'alimentacao', name: 'Supermercado (Alimentação)', perc: activeCampaign.expensesPercentages.alimentacao },
+        { id: 'moradia', name: 'Despesas de Moradia/Manutenção', perc: activeCampaign.expensesPercentages.moradia },
+        { id: 'transporte', name: 'Combustível/Transporte Público', perc: activeCampaign.expensesPercentages.transporte },
+        { id: 'saude', name: 'Plano de Saúde / Higiene Familiar', perc: activeCampaign.expensesPercentages.saude },
+        { id: 'higiene', name: 'Produtos de Limpeza e Higiene', perc: activeCampaign.expensesPercentages.higiene },
+        { id: 'educacao', name: 'Mensalidades / Material Escolar', perc: activeCampaign.expensesPercentages.educacao },
+        { id: 'lazer', name: 'Lazer e Entretenimento', perc: activeCampaign.expensesPercentages.lazer }
+      ];
+
+      categories.forEach(cat => {
+        if (cat.perc > 0) {
+          let val = (finalSalary * (cat.perc / 100)) * (0.9 + Math.random() * 0.2);
+          bills.push({
+            id: 'bill_' + cat.id + '_1_' + Math.random().toString(36).substr(2, 4),
+            type: cat.id,
+            name: cat.name,
+            value: Math.round(val * sizeMult * diff.costMultiplier),
+            dueWeek: 1
+          });
+        }
+      });
+
+      const newParticipant = {
+        id: participantId,
+        userId: userId,
+        campaignId: activeCampaign.id,
+        week: 1,
+        finished: 0,
+        balance: finalBalance,
+        reserve: 0.0,
+        salary: finalSalary,
+        family: familyTemplate,
+        loans: [],
+        pendingLoans: [],
+        investments: { poupanca: 0, cdb: 0, tesouro_direto: 0, fundo_acoes: 0 },
+        indicators: { health: 75, happiness: 75, cleanliness: 75, financial: 50 },
+        energy: 100,
+        activeIllnesses: [],
+        activeEvents: [],
+        unpaidBills: bills,
+        overdueBills: [],
+        tasksCompletedThisWeek: [],
+        extraIncomeCompletedThisWeek: [],
+        customExtraIncomePending: [],
+        goalsStatus: {},
+        notifications: [{ type: 'info', text: 'Você iniciou a simulação! Organize suas despesas.' }]
+      };
+
+      // Inserir Participante
+      await db.createParticipant(newParticipant);
+
+      // Salvar snapshot inicial
+      await db.addHistorySnapshot({
+        id: 'snap_' + participantId + '_1',
+        participantId,
+        week: 1,
+        balance: finalBalance,
+        reserve: 0,
+        investments: { poupanca: 0, cdb: 0, tesouro_direto: 0, fundo_acoes: 0 },
+        indicators: { health: 75, happiness: 75, cleanliness: 75, financial: 50 },
+        debt: 0,
+        netWorth: finalBalance
+      });
+
+      // Log de auditoria
+      await db.addAuditLog({
+        id: 'log_' + Date.now(),
+        timestamp: new Date().toISOString(),
+        username: name,
+        action: 'Novo Cadastro de Aluno',
+        details: `Participante ${name} (Unidade: ${unidade}) criado com sucesso.`
+      });
+    }
+
+    res.status(201).json({ success: true, message: 'Usuário cadastrado com sucesso!' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: err.message || 'Erro no servidor durante o registro.' });
+  }
+});
+
+// Login de Usuários
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ message: 'Preencha usuário e senha.' });
+  }
+
+  try {
+    const user = await db.getUser(username);
+    if (!user) {
+      return res.status(400).json({ message: 'Usuário ou senha incorretos.' });
+    }
+
+    const isValid = await bcrypt.compare(password, user.password_hash);
+    if (!isValid) {
+      return res.status(400).json({ message: 'Usuário ou senha incorretos.' });
+    }
+
+    // Gerar Token JWT
+    const token = jwt.sign(
+      { id: user.id, username: user.username, role: user.role, name: user.name },
+      SECRET_KEY,
+      { expiresIn: '7d' }
+    );
+
+    // Buscar ID do participante se for jogador
+    let participantId = null;
+    if (user.role === 'participant') {
+      const part = await db.getParticipantByUserId(user.id);
+      if (part) participantId = part.id;
+    }
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        name: user.name,
+        participantId
+      }
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro interno ao realizar login.' });
+  }
+});
+
+
+// --- ROTAS DA API GERAL (PROTEGIDAS) ---
+
+// Retorna Campanha Ativa
+app.get('/api/campaign', authenticateToken, async (req, res) => {
+  try {
+    const campaign = await db.getActiveCampaign();
+    if (!campaign) return res.status(404).json({ message: 'Nenhuma campanha ativa configurada.' });
+    res.json(campaign);
+  } catch (err) {
+    res.status(500).json({ message: 'Erro ao carregar campanha.' });
+  }
+});
+
+// Atualizar Campanha (Admin Only)
+app.put('/api/campaign', authenticateToken, requireAdmin, async (req, res) => {
+  const { name, difficulty, durationWeeks, fixedSalary, expensesPercentages, lateFee, interestRate, loanConfig, weights } = req.body;
+
+  try {
+    const campaign = await db.getActiveCampaign();
+    if (!campaign) return res.status(404).json({ message: 'Nenhuma campanha ativa encontrada.' });
+
+    const updated = {
+      ...campaign,
+      name,
+      difficulty,
+      durationWeeks,
+      fixedSalary,
+      expensesPercentages,
+      lateFee,
+      interestRate,
+      loanConfig,
+      weights
+    };
+
+    await db.updateCampaign(updated);
+
+    // Gravar auditoria
+    await db.addAuditLog({
+      id: 'log_' + Date.now(),
+      timestamp: new Date().toISOString(),
+      username: req.user.name,
+      action: 'Configuração da Campanha Modificada',
+      details: `Parâmetros editados. Nível de dificuldade ajustado para: ${difficulty}.`
+    });
+
+    res.json({ success: true, message: 'Configurações de campanha atualizadas!' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro ao atualizar campanha.' });
+  }
+});
+
+// Listar todos os participantes (Admin Only)
+app.get('/api/participants', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const rows = await db.getParticipants();
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro ao listar participantes.' });
+  }
+});
+
+// Obter dados de um participante específico
+app.get('/api/participant/:id', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+
+  try {
+    const p = await db.getParticipantById(pId);
+    if (!p) return res.status(404).json({ message: 'Participante não encontrado.' });
+
+    // Segurança: Admin pode ver tudo; Participante comum apenas a si mesmo
+    if (req.user.role !== 'admin' && p.userId !== req.user.id) {
+      return res.status(403).json({ message: 'Acesso não autorizado a esta família.' });
+    }
+
+    // Buscar histórico de snapshots temporais
+    const historySnaps = await db.getHistory(pId);
+    p.history = historySnaps;
+
+    res.json(p);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro ao carregar ficha do participante.' });
+  }
+});
+
+// --- OPERAÇÕES DO JOGO ---
+
+// Pagar Fatura
+app.post('/api/participant/:id/pay-bill', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+  const { billId, isOverdue } = req.body;
+
+  try {
+    const p = await db.getParticipantById(pId);
+    if (!p) return res.status(404).json({ message: 'Participante não encontrado.' });
+
+    const billList = isOverdue ? p.overdueBills : p.unpaidBills;
+    const billIdx = billList.findIndex(b => b.id === billId);
+
+    if (billIdx === -1) return res.status(400).json({ message: 'Fatura não encontrada.' });
+
+    const bill = billList[billIdx];
+    const finalVal = isOverdue ? (bill.totalValue || bill.value) : bill.value;
+
+    if (p.balance < finalVal) {
+      const needed = finalVal - p.balance;
+      if (p.reserve >= needed) {
+        p.reserve -= needed;
+        p.balance = 0;
+        p.notifications.unshift({ type: 'info', text: `R$ ${needed} retirados da Reserva de Emergência para pagar '${bill.name}'.` });
+      } else {
+        return res.status(400).json({ message: 'Saldo e Reserva de Emergência insuficientes.' });
+      }
+    } else {
+      p.balance -= finalVal;
+    }
+
+    billList.splice(billIdx, 1);
+    p.notifications.unshift({ type: 'success', text: `Pago faturamento '${bill.name}' por R$ ${finalVal.toFixed(2)}.` });
+    p.indicators.happiness = Math.min(100, p.indicators.happiness + 2);
+
+    await db.saveParticipant(p);
+    res.json({ success: true, message: 'Fatura paga!' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro ao liquidar conta.' });
+  }
+});
+
+// Realizar Tarefas
+app.post('/api/participant/:id/execute-task', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+  const { taskId } = req.body;
+
+  try {
+    const p = await db.getParticipantById(pId);
+    const campaign = await db.getActiveCampaign();
+    if (!p || !campaign) return res.status(404).json({ message: 'Erro ao carregar dados.' });
+
+    const task = DEFAULT_TASKS.find(t => t.id === taskId);
+    if (!task) return res.status(400).json({ message: 'Tarefa inválida.' });
+
+    if (p.energy < task.energyCost) {
+      return res.status(400).json({ message: 'Você não tem energia suficiente para realizar esta tarefa.' });
+    }
+
+    const diff = INITIAL_DIFFICULTIES[campaign.difficulty];
+    const finalCost = Math.round(task.cost * diff.costMultiplier);
+
+    if (p.balance < finalCost) {
+      return res.status(400).json({ message: 'Saldo insuficiente para cobrir o custo da tarefa.' });
+    }
+
+    p.energy -= task.energyCost;
+    p.balance -= finalCost;
+    
+    p.indicators.cleanliness = Math.min(100, p.indicators.cleanliness + task.cleanlinessImpact);
+    p.indicators.health = Math.min(100, p.indicators.health + task.healthImpact);
+    p.indicators.happiness = Math.min(100, p.indicators.happiness + task.happinessImpact);
+
+    p.tasksCompletedThisWeek.push(taskId);
+    p.notifications.unshift({ type: 'success', text: `Chore concluído: '${task.name}'. Custo: R$ ${finalCost}. Energia gasta: ${task.energyCost}%.` });
+
+    await db.saveParticipant(p);
+    res.json({ success: true, message: 'Tarefa executada!' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro ao realizar tarefa.' });
+  }
+});
+
+// Solicitar Empréstimo
+app.post('/api/participant/:id/request-loan', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+  const { amount, term, justification } = req.body;
+
+  try {
+    const p = await db.getParticipantById(pId);
+    const campaign = await db.getActiveCampaign();
+    if (!p || !campaign) return res.status(404).json({ message: 'Dados não encontrados.' });
+
+    const loanCfg = campaign.loanConfig;
+
+    if (amount < loanCfg.minVal || amount > loanCfg.maxVal) {
+      return res.status(400).json({ message: `Montante deve estar entre R$ ${loanCfg.minVal} e R$ ${loanCfg.maxVal}.` });
+    }
+    if (term < loanCfg.minTerm || term > loanCfg.maxTerm) {
+      return res.status(400).json({ message: `Prazo deve estar entre ${loanCfg.minTerm} e ${loanCfg.maxTerm} parcelas.` });
+    }
+
+    const estRate = (loanCfg.minRate + loanCfg.maxRate) / 2;
+    const monthlyRate = estRate / 100;
+    const pmt = amount * (monthlyRate * Math.pow(1 + monthlyRate, term)) / (Math.pow(1 + monthlyRate, term) - 1);
+    
+    // Limite de endividamento
+    const currentActivePayments = p.loans.reduce((sum, l) => sum + l.monthlyPayment, 0);
+    if (currentActivePayments + pmt > p.salary * 0.45) {
+      return res.status(400).json({ message: `Empréstimo negado! Parcela de R$ ${pmt.toFixed(2)} excede o limite crítico de endividamento (45% do salário).` });
+    }
+
+    const newRequest = {
+      id: 'loan_req_' + Date.now(),
+      amount: Math.round(amount),
+      term: parseInt(term),
+      rate: Math.round(estRate * 10) / 10,
+      monthlyPayment: Math.round(pmt * 100) / 100,
+      totalAmount: Math.round(pmt * term * 100) / 100,
+      justification,
+      status: 'pending',
+      date: new Date().toISOString()
+    };
+
+    p.pendingLoans.push(newRequest);
+    p.notifications.unshift({ type: 'info', text: `Pedido de empréstimo de R$ ${amount} submetido à aprovação.` });
+
+    await db.saveParticipant(p);
+    res.json({ success: true, message: 'Pedido enviado ao Diretor!' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro ao solicitar empréstimo.' });
+  }
+});
+
+// Poupar
+app.post('/api/participant/:id/invest', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+  const { productId, amount } = req.body;
+
+  try {
+    const p = await db.getParticipantById(pId);
+    if (amount <= 0 || p.balance < amount) return res.status(400).json({ message: 'Saldo insuficiente.' });
+
+    p.balance -= amount;
+    p.investments[productId] = (p.investments[productId] || 0) + amount;
+    p.notifications.unshift({ type: 'success', text: `Aplicado R$ ${amount.toFixed(2)} em ${productId.toUpperCase()}.` });
+
+    await db.saveParticipant(p);
+    res.json({ success: true, message: 'Aplicação realizada!' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro ao aplicar.' });
+  }
+});
+
+app.post('/api/participant/:id/withdraw-investment', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+  const { productId, amount } = req.body;
+
+  try {
+    const p = await db.getParticipantById(pId);
+    const invested = p.investments[productId] || 0;
+    if (amount <= 0 || invested < amount) return res.status(400).json({ message: 'Saldo insuficiente.' });
+
+    const prod = DEFAULT_INVESTMENT_PRODUCTS.find(x => x.id === productId);
+    const penalty = prod && prod.withdrawalPenalty ? amount * prod.withdrawalPenalty : 0;
+    const net = amount - penalty;
+
+    p.investments[productId] -= amount;
+    p.balance += net;
+    
+    let msg = `Resgate de R$ ${net.toFixed(2)} efetuado.`;
+    if (penalty > 0) msg += ` Descontada taxa de resgate de R$ ${penalty.toFixed(2)}.`;
+    
+    p.notifications.unshift({ type: 'info', text: msg });
+
+    await db.saveParticipant(p);
+    res.json({ success: true, message: 'Resgate efetuado!' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro ao resgatar.' });
+  }
+});
+
+// Reserva
+app.post('/api/participant/:id/manage-reserve', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+  const { action, amount } = req.body;
+
+  try {
+    const p = await db.getParticipantById(pId);
+
+    if (action === 'deposit') {
+      if (amount <= 0 || p.balance < amount) return res.status(400).json({ message: 'Saldo insuficiente.' });
+      p.balance -= amount;
+      p.reserve += amount;
+      p.notifications.unshift({ type: 'success', text: `R$ ${amount} guardados na Reserva de Emergência.` });
+    } else if (action === 'withdraw') {
+      if (amount <= 0 || p.reserve < amount) return res.status(400).json({ message: 'Reserva insuficiente.' });
+      p.reserve -= amount;
+      p.balance += amount;
+      p.notifications.unshift({ type: 'info', text: `R$ ${amount} retirados da Reserva.` });
+    }
+
+    await db.saveParticipant(p);
+    res.json({ success: true, message: 'Reserva atualizada!' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro ao gerenciar reserva.' });
+  }
+});
+
+// Renda Extra
+app.post('/api/participant/:id/extra-income', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+  const { activityId } = req.body;
+
+  try {
+    const p = await db.getParticipantById(pId);
+    const campaign = await db.getActiveCampaign();
+
+    const act = DEFAULT_EXTRA_INCOME_ACTIVITIES.find(a => a.id === activityId);
+    const diff = INITIAL_DIFFICULTIES[campaign.difficulty];
+    const reward = Math.round(act.baseReward * diff.incomeMultiplier);
+
+    const energyCost = act.daysRequired * 15;
+    if (p.energy < energyCost) {
+      return res.status(400).json({ message: 'Você está exausto para fazer renda extra.' });
+    }
+
+    p.energy -= energyCost;
+    p.balance += reward;
+
+    if (act.happinessImpact) p.indicators.happiness = Math.max(0, Math.min(100, p.indicators.happiness + act.happinessImpact));
+    if (act.healthImpact) p.indicators.health = Math.max(0, Math.min(100, p.indicators.health + act.healthImpact));
+    if (act.cleanlinessImpact) p.indicators.cleanliness = Math.max(0, Math.min(100, p.indicators.cleanliness + act.cleanlinessImpact));
+
+    p.extraIncomeCompletedThisWeek.push(activityId);
+    p.notifications.unshift({ type: 'success', text: `Renda extra '${act.name}' efetuada! Receita: R$ ${reward}.` });
+
+    await db.saveParticipant(p);
+    res.json({ success: true, message: 'Trabalho de Renda Extra concluído!' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro na renda extra.' });
+  }
+});
+
+app.post('/api/participant/:id/custom-income', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+  const { name, description, estimatedReward } = req.body;
+
+  try {
+    const p = await db.getParticipantById(pId);
+    const newRequest = {
+      id: 'custom_inc_' + Date.now(),
+      name,
+      description,
+      estimatedReward: parseInt(estimatedReward),
+      status: 'pending',
+      date: new Date().toISOString()
+    };
+
+    p.customExtraIncomePending.push(newRequest);
+    p.notifications.unshift({ type: 'info', text: `Proposta de renda extra '${name}' enviada para aprovação do Diretor.` });
+
+    await db.saveParticipant(p);
+    res.json({ success: true, message: 'Proposta enviada!' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro ao propor renda extra.' });
+  }
+});
+
+// Comprar Comida
+app.post('/api/participant/:id/market-food', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+  const { option } = req.body;
+
+  try {
+    const p = await db.getParticipantById(pId);
+    const campaign = await db.getActiveCampaign();
+
+    const diff = INITIAL_DIFFICULTIES[campaign.difficulty];
+    const sizeMult = p.family.baseExpensesMultiplier;
+
+    let cost = 0, healthImpact = 0, happinessImpact = 0, name = "";
+
+    if (option === 'basic') {
+      name = "Alimentação Básica (Ultraprocessados)";
+      cost = 150 * sizeMult * diff.costMultiplier; healthImpact = -10; happinessImpact = -3;
+    } else if (option === 'healthy') {
+      name = "Alimentação Equilibrada (Fresco)";
+      cost = 300 * sizeMult * diff.costMultiplier; healthImpact = 8; happinessImpact = 5;
+    } else if (option === 'premium') {
+      name = "Alimentação Premium (Orgânico)";
+      cost = 500 * sizeMult * diff.costMultiplier; healthImpact = 15; happinessImpact = 12;
+    }
+
+    cost = Math.round(cost);
+
+    if (p.balance < cost) return res.status(400).json({ message: 'Saldo insuficiente.' });
+
+    p.balance -= cost;
+    p.indicators.health = Math.max(0, Math.min(100, p.indicators.health + healthImpact));
+    p.indicators.happiness = Math.max(0, Math.min(100, p.indicators.happiness + happinessImpact));
+    p.notifications.unshift({ type: 'success', text: `Compra de alimentação '${name}' efetuada por R$ ${cost}.` });
+
+    await db.saveParticipant(p);
+    res.json({ success: true, message: 'Comida comprada!' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro no mercado.' });
+  }
+});
+
+// Comprar Remédio
+app.post('/api/participant/:id/buy-medicine', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+  const { diseaseId } = req.body;
+
+  try {
+    const p = await db.getParticipantById(pId);
+    const illIdx = p.activeIllnesses.findIndex(i => i.id === diseaseId);
+    if (illIdx === -1) return res.status(400).json({ message: 'Doença não ativa.' });
+
+    const ill = p.activeIllnesses[illIdx];
+    if (p.balance < ill.medicineCost) return res.status(400).json({ message: 'Saldo insuficiente.' });
+
+    p.balance -= ill.medicineCost;
+    p.activeIllnesses.splice(illIdx, 1);
+
+    p.indicators.health = Math.min(100, p.indicators.health + Math.abs(ill.healthImpact) * 0.8);
+    p.indicators.happiness = Math.min(100, p.indicators.happiness + Math.abs(ill.happinessImpact) * 0.8);
+    p.notifications.unshift({ type: 'success', text: `Medicamento '${ill.requiredMedicine}' comprado. Doença curada!` });
+
+    await db.saveParticipant(p);
+    res.json({ success: true, message: 'Remédio comprado!' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro na farmácia.' });
+  }
+});
+
+// Fechamento Mensal
+app.post('/api/participant/:id/advance-week', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+
+  try {
+    const p = await db.getParticipantById(pId);
+    const campaign = await db.getActiveCampaign();
+    if (!p || !campaign) return res.status(404).json({ message: 'Erro ao carregar dados.' });
+
+    const diff = INITIAL_DIFFICULTIES[campaign.difficulty];
+
+    // 1. Salvar Snapshot Histórico
+    const liquidAssets = p.balance + p.reserve + Object.values(p.investments).reduce((sum, v) => sum + v, 0);
+    const debts = p.overdueBills.reduce((sum, b) => sum + (b.totalValue || b.value), 0) +
+                  p.loans.reduce((sum, l) => sum + (l.totalAmount - (l.paidTerms * l.monthlyPayment)), 0);
+    const netWorth = liquidAssets - debts;
+
+    const snap = {
+      id: 'snap_' + p.id + '_' + p.week,
+      participantId: p.id,
+      week: p.week,
+      balance: p.balance,
+      reserve: p.reserve,
+      investments: p.investments,
+      indicators: p.indicators,
+      debt: debts,
+      netWorth
+    };
+
+    await db.addHistorySnapshot(snap);
+
+    // 2. Recebimento de Salário
+    let salaryApplied = p.salary;
+    const workLoss = p.activeEvents.find(e => e.id === 'unemployment');
+    if (workLoss) {
+      salaryApplied = Math.round(p.salary * 0.3);
+      p.notifications.unshift({ type: 'warning', text: 'Você recebeu apenas 30% do salário devido ao desemprego temporário.' });
+    }
+    p.balance += salaryApplied;
+
+    // 3. Contas não pagas (Viram overdue com multas/juros)
+    p.unpaidBills.forEach(bill => {
+      const fine = Math.round(bill.value * (campaign.lateFee / 100));
+      const interest = Math.round(bill.value * (campaign.interestRate / 100));
+      
+      p.overdueBills.push({
+        id: bill.id, type: bill.type, name: bill.name + " (Atrasada)",
+        value: bill.value, originalValue: bill.value, dueWeek: bill.dueWeek,
+        fineApplied: fine, interestApplied: interest, totalValue: bill.value + fine + interest
+      });
+
+      p.indicators.happiness = Math.max(0, p.indicators.happiness - 8);
+    });
+
+    if (p.unpaidBills.length > 0) {
+      p.notifications.unshift({ type: 'warning', text: `Você deixou ${p.unpaidBills.length} contas vencerem.` });
+    }
+    p.unpaidBills = [];
+
+    // Juros acumulativos nas atrasadas
+    p.overdueBills.forEach(bill => {
+      const extraInterest = Math.round(bill.originalValue * (campaign.interestRate / 100));
+      bill.interestApplied += extraInterest;
+      bill.totalValue = bill.originalValue + bill.fineApplied + bill.interestApplied;
+      p.indicators.happiness = Math.max(0, p.indicators.happiness - 4);
+    });
+
+    // 4. Cobrança de Parcelas de Empréstimos
+    let totalPMTs = 0;
+    p.loans.forEach(loan => {
+      if (loan.paidTerms < loan.term) {
+        totalPMTs += loan.monthlyPayment;
+        loan.paidTerms += 1;
+      }
+    });
+
+    if (totalPMTs > 0) {
+      if (p.balance >= totalPMTs) {
+        p.balance -= totalPMTs;
+        p.notifications.unshift({ type: 'info', text: `Débito de R$ ${totalPMTs.toFixed(2)} das parcelas de empréstimos.` });
+      } else {
+        const unpaid = totalPMTs - p.balance;
+        p.balance = 0;
+        p.overdueBills.push({
+          id: 'loan_fail_' + p.week + '_' + Math.random().toString(36).substr(2, 3),
+          type: 'loan_repay', name: 'Parcela de Empréstimo Inadimplida',
+          value: unpaid, originalValue: unpaid, dueWeek: p.week,
+          fineApplied: Math.round(unpaid * 0.05), interestApplied: Math.round(unpaid * 0.03),
+          totalValue: Math.round(unpaid * 1.08)
+        });
+        p.indicators.happiness = Math.max(0, p.indicators.happiness - 15);
+        p.notifications.unshift({ type: 'danger', text: 'Você não tinha saldo para pagar o empréstimo! Encargos cobrados.' });
+      }
+    }
+
+    // 5. Rendimentos
+    let totalEarn = 0;
+    for (const prodId of Object.keys(p.investments)) {
+      const amt = p.investments[prodId] || 0;
+      if (amt > 0) {
+        const prod = DEFAULT_INVESTMENT_PRODUCTS.find(x => x.id === prodId);
+        let rate = prod.monthlyYield;
+        if (prod.isVariable) rate = -0.04 + Math.random() * 0.10;
+        const earn = Math.round(amt * rate);
+        p.investments[prodId] += earn;
+        totalEarn += earn;
+      }
+    }
+
+    if (totalEarn > 0) p.notifications.unshift({ type: 'success', text: `Rendimento de investimentos: R$ ${totalEarn.toFixed(2)}.` });
+    else if (totalEarn < 0) p.notifications.unshift({ type: 'warning', text: `Queda no Fundo de Ações de R$ ${Math.abs(totalEarn).toFixed(2)}.` });
+
+    // 6. Decaimento natural de Limpeza/Saúde
+    const sizeMult = p.family.baseExpensesMultiplier;
+    p.indicators.cleanliness = Math.max(0, p.indicators.cleanliness - Math.round(15 * sizeMult));
+    
+    let healthDec = 5;
+    if (p.indicators.cleanliness < 40) {
+      healthDec += 15;
+      p.notifications.unshift({ type: 'warning', text: 'Saúde da família prejudicada devido à casa suja!' });
+    }
+    p.indicators.health = Math.max(0, p.indicators.health - healthDec);
+
+    const finalDebts = p.overdueBills.reduce((s, b) => s + (b.totalValue || b.value), 0) +
+                       p.loans.reduce((s, l) => s + (l.totalAmount - (l.paidTerms * l.monthlyPayment)), 0);
+    if (finalDebts > p.salary * 1.5) {
+      p.indicators.happiness = Math.max(0, p.indicators.happiness - 15);
+      p.notifications.unshift({ type: 'warning', text: 'Dívidas excessivas estão prejudicando a felicidade familiar.' });
+    }
+
+    // 7. Doenças
+    p.activeIllnesses.forEach(ill => {
+      ill.recoveryWeeks -= 1;
+      p.indicators.health = Math.max(0, p.indicators.health + ill.healthImpact * 0.5);
+      p.indicators.happiness = Math.max(0, p.indicators.happiness + ill.happinessImpact * 0.5);
+    });
+
+    p.activeIllnesses = p.activeIllnesses.filter(ill => {
+      if (ill.recoveryWeeks <= 0) {
+        p.notifications.unshift({ type: 'success', text: `A doença '${ill.name}' terminou seu ciclo natural.` });
+        return false;
+      }
+      return true;
+    });
+
+    if (p.indicators.cleanliness < 35 || p.indicators.health < 40) {
+      if (Math.random() < diff.diseaseProbability * 2.0) {
+        const dTemplate = DEFAULT_DISEASES[Math.floor(Math.random() * DEFAULT_DISEASES.length)];
+        if (!p.activeIllnesses.some(x => x.id === dTemplate.id)) {
+          p.activeIllnesses.push({ ...dTemplate });
+          p.indicators.health = Math.max(0, p.indicators.health + dTemplate.healthImpact);
+          p.indicators.happiness = Math.max(0, p.indicators.happiness + dTemplate.happinessImpact);
+          p.notifications.unshift({ type: 'danger', text: `Falta de higiene causou a doença: '${dTemplate.name}'. Vá à Farmácia!` });
+        }
+      }
+    }
+
+    // 8. Eventos Aleatórios
+    if (Math.random() < diff.eventProbability) {
+      const event = DEFAULT_EVENTS[Math.floor(Math.random() * DEFAULT_EVENTS.length)];
+      p.balance += event.financialImpact;
+      p.indicators.health = Math.max(0, Math.min(100, p.indicators.health + event.healthImpact));
+      p.indicators.happiness = Math.max(0, Math.min(100, p.indicators.happiness + event.happinessImpact));
+      p.indicators.cleanliness = Math.max(0, Math.min(100, p.indicators.cleanliness + event.cleanlinessImpact));
+
+      p.activeEvents.push({
+        id: event.id, name: event.name, description: event.description,
+        impact: event.financialImpact, tip: event.educationalTip, weekTriggered: p.week
+      });
+      p.notifications.unshift({ type: event.category === 'positive' ? 'success' : 'danger', text: `EVENTO: ${event.name}! ${event.description}` });
+    }
+    p.activeEvents = p.activeEvents.filter(e => e.weekTriggered === p.week);
+
+    // 9. Atualizar indicador financeiro
+    const finalAssets = p.balance + p.reserve + Object.values(p.investments).reduce((sum, v) => sum + v, 0);
+    let finScore = 50;
+    if (finalDebts === 0) {
+      finScore = finalAssets > p.salary ? 95 : 75;
+    } else {
+      const ratio = finalAssets / (finalDebts + 1);
+      if (ratio >= 2) finScore = 90;
+      else if (ratio >= 1) finScore = 70;
+      else if (ratio >= 0.5) finScore = 50;
+      else if (ratio >= 0.2) finScore = 30;
+      else finScore = 15;
+    }
+    p.indicators.financial = finScore;
+
+    // 10. Objetivos da Campanha
+    campaign.goals.forEach(goal => {
+      let status = p.goalsStatus[goal.id] || "in_progress";
+      if (status === "in_progress") {
+        if (goal.targetType === "reserve" && p.reserve >= goal.targetValue) status = "completed";
+        if (goal.targetType === "no_loans" && p.loans.length > 0) status = "failed";
+        if (goal.targetType === "investments") {
+          const totalInvested = Object.values(p.investments).reduce((s, v) => s + v, 0);
+          if (totalInvested >= goal.targetValue) status = "completed";
+        }
+        
+        // Fim da simulação
+        if (p.week >= campaign.durationWeeks) {
+          if (goal.targetType === "health") status = p.indicators.health >= goal.targetValue ? "completed" : "failed";
+          if (goal.targetType === "happiness") status = p.indicators.happiness >= goal.targetValue ? "completed" : "failed";
+          if (goal.targetType === "no_loans") status = p.loans.length === 0 ? "completed" : "failed";
+        }
+
+        if (status !== "in_progress") {
+          p.goalsStatus[goal.id] = status;
+          p.notifications.unshift({
+            type: status === 'completed' ? 'success' : 'danger',
+            text: `Objetivo '${goal.name}' ${status === 'completed' ? 'Concluído! (+' + goal.points + ' pts)' : 'Falhou!'}`
+          });
+        }
+      }
+    });
+
+    // 11. Incrementar tempo
+    p.week += 1;
+    p.energy = 100;
+    p.tasksCompletedThisWeek = [];
+    p.extraIncomeCompletedThisWeek = [];
+
+    // Gerar novas faturas se não acabou
+    if (p.week > campaign.durationWeeks) {
+      p.finished = 1;
+      p.notifications.unshift({ type: 'success', text: 'Parabéns! Você concluiu a simulação "Missão Família"!' });
+    } else {
+      // Contas do novo período
+      activeCampaignBillsSeed(p, campaign, sizeMult, diff.costMultiplier);
+    }
+
+    await db.saveParticipant(p);
+    res.json({ success: true, message: `Virada de mês efetuada! Iniciando Mês ${p.week}.` });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro no fechamento do mês.' });
+  }
+});
+
+function activeCampaignBillsSeed(p, campaign, sizeMult, costMult) {
+  campaign.accountsConfig.forEach(cfg => {
+    if (cfg.enabled) {
+      const val = cfg.minVal + Math.random() * (cfg.maxVal - cfg.minVal);
+      p.unpaidBills.push({
+        id: 'bill_' + cfg.id + '_' + p.week + '_' + Math.random().toString(36).substr(2, 4),
+        type: cfg.id, name: cfg.name, value: Math.round(val * sizeMult * costMult), dueWeek: p.week
+      });
+    }
+  });
+
+  const categories = [
+    { id: 'alimentacao', name: 'Supermercado (Alimentação)', perc: campaign.expensesPercentages.alimentacao },
+    { id: 'moradia', name: 'Despesas de Moradia/Manutenção', perc: campaign.expensesPercentages.moradia },
+    { id: 'transporte', name: 'Combustível/Transporte Público', perc: campaign.expensesPercentages.transporte },
+    { id: 'saude', name: 'Plano de Saúde / Higiene Familiar', perc: campaign.expensesPercentages.saude },
+    { id: 'higiene', name: 'Produtos de Limpeza e Higiene', perc: campaign.expensesPercentages.higiene },
+    { id: 'educacao', name: 'Mensalidades / Material Escolar', perc: campaign.expensesPercentages.educacao },
+    { id: 'lazer', name: 'Lazer e Entretenimento', perc: campaign.expensesPercentages.lazer }
+  ];
+  categories.forEach(cat => {
+    if (cat.perc > 0) {
+      let val = (p.salary * (cat.perc / 100)) * (0.9 + Math.random() * 0.2);
+      p.unpaidBills.push({
+        id: 'bill_' + cat.id + '_' + p.week + '_' + Math.random().toString(36).substr(2, 4),
+        type: cat.id, name: cat.name, value: Math.round(val * sizeMult * costMult), dueWeek: p.week
+      });
+    }
+  });
+}
+
+// --- ROTAS DO ADMINISTRADOR ---
+
+// Aprovar Empréstimo
+app.post('/api/admin/approve-loan', authenticateToken, requireAdmin, async (req, res) => {
+  const { participantId, loanId, action, modifiedParams } = req.body;
+
+  try {
+    const p = await db.getParticipantById(participantId);
+    if (!p) return res.status(404).json({ message: 'Participante não encontrado.' });
+
+    const reqIdx = p.pendingLoans.findIndex(x => x.id === loanId);
+    if (reqIdx === -1) return res.status(400).json({ message: 'Pedido de empréstimo não encontrado.' });
+
+    const loanReq = p.pendingLoans[reqIdx];
+
+    if (action === 'approved') {
+      let finalAmt = modifiedParams ? parseInt(modifiedParams.amount) : loanReq.amount;
+      let finalTerm = modifiedParams ? parseInt(modifiedParams.term) : loanReq.term;
+      let finalRate = modifiedParams ? parseFloat(modifiedParams.rate) : loanReq.rate;
+
+      const monthlyRate = finalRate / 100;
+      const pmt = finalAmt * (monthlyRate * Math.pow(1 + monthlyRate, finalTerm)) / (Math.pow(1 + monthlyRate, finalTerm) - 1);
+
+      const newLoan = {
+        id: 'loan_' + Date.now(),
+        amount: finalAmt,
+        term: finalTerm,
+        rate: finalRate,
+        monthlyPayment: Math.round(pmt * 100) / 100,
+        totalAmount: Math.round(pmt * finalTerm * 100) / 100,
+        paidTerms: 0,
+        justification: loanReq.justification,
+        dateApproved: new Date().toISOString()
+      };
+
+      p.loans.push(newLoan);
+      p.balance += finalAmt;
+      p.notifications.unshift({ type: 'success', text: `Seu empréstimo de R$ ${finalAmt} foi Aprovado pelo Diretor!` });
+
+      await db.addAuditLog({
+        id: 'log_' + Date.now(),
+        timestamp: new Date().toISOString(),
+        username: req.user.name,
+        action: 'Empréstimo Aprovado',
+        details: `Aprovado empréstimo de R$ ${finalAmt} para ${p.name}.`
+      });
+    } else {
+      p.notifications.unshift({ type: 'danger', text: `Seu pedido de empréstimo de R$ ${loanReq.amount} foi Recusado pelo Diretor.` });
+      await db.addAuditLog({
+        id: 'log_' + Date.now(),
+        timestamp: new Date().toISOString(),
+        username: req.user.name,
+        action: 'Empréstimo Rejeitado',
+        details: `Rejeitado empréstimo de R$ ${loanReq.amount} de ${p.name}.`
+      });
+    }
+
+    p.pendingLoans.splice(reqIdx, 1);
+    await db.saveParticipant(p);
+
+    res.json({ success: true, message: `Solicitação resolvida!` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro ao processar empréstimo.' });
+  }
+});
+
+// Aprovar Renda Extra
+app.post('/api/admin/approve-income', authenticateToken, requireAdmin, async (req, res) => {
+  const { participantId, activityId, action } = req.body;
+
+  try {
+    const p = await db.getParticipantById(participantId);
+    if (!p) return res.status(404).json({ message: 'Participante não encontrado.' });
+
+    const reqIdx = p.customExtraIncomePending.findIndex(x => x.id === activityId);
+    if (reqIdx === -1) return res.status(400).json({ message: 'Proposta de Renda Extra não encontrada.' });
+
+    const reqInc = p.customExtraIncomePending[reqIdx];
+
+    if (action === 'approved') {
+      p.balance += reqInc.estimatedReward;
+      p.notifications.unshift({ type: 'success', text: `Sua renda extra '${reqInc.name}' foi aprovada! R$ ${reqInc.estimatedReward} creditados.` });
+
+      await db.addAuditLog({
+        id: 'log_' + Date.now(),
+        timestamp: new Date().toISOString(),
+        username: req.user.name,
+        action: 'Renda Extra Aprovada',
+        details: `Aprovada renda extra '${reqInc.name}' para ${p.name}.`
+      });
+    } else {
+      p.notifications.unshift({ type: 'danger', text: `Sua proposta de renda extra '${reqInc.name}' foi rejeitada pelo Diretor.` });
+      await db.addAuditLog({
+        id: 'log_' + Date.now(),
+        timestamp: new Date().toISOString(),
+        username: req.user.name,
+        action: 'Renda Extra Rejeitada',
+        details: `Rejeitada proposta '${reqInc.name}' de ${p.name}.`
+      });
+    }
+
+    p.customExtraIncomePending.splice(reqIdx, 1);
+    await db.saveParticipant(p);
+
+    res.json({ success: true, message: `Atividade resolvida!` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro ao processar renda extra.' });
+  }
+});
+
+// Auditoria
+app.get('/api/admin/audit-logs', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const logs = await db.getAuditLogs();
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ message: 'Erro ao carregar logs.' });
+  }
+});
+
+// --- SERVIR ARQUIVOS ESTÁTICOS DA SPA ---
+app.use(express.static(path.join(__dirname, '..')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'index.html'));
+});
+
+// --- INICIALIZAR PORTA (APENAS EM DEV LOCAL) ---
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`====================================================`);
+    console.log(`Servidor de Desenvolvimento rodando localmente em http://localhost:${PORT}`);
+    console.log(`====================================================`);
+  });
+}
+
+// Exportar Express app para o Vercel Serverless Functions Builder
+export default app;
