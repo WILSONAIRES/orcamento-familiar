@@ -11,6 +11,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   
   <link rel="stylesheet" href="style.css">
+  
+  <!-- Supabase JS Browser SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -31,21 +34,26 @@
       <!-- Formulário de Login -->
       <form id="form-login" class="auth-form active">
         <div class="form-group">
-          <label for="login-username">Nome de Usuário (Username)</label>
-          <input type="text" id="login-username" class="input-modern" placeholder="ex: wilsonaires" required>
+          <label for="login-username">E-mail</label>
+          <input type="email" id="login-username" class="input-modern" placeholder="ex: diretor@gmail.com" required>
         </div>
         <div class="form-group">
           <label for="login-password">Senha de Segurança</label>
           <input type="password" id="login-password" class="input-modern" placeholder="••••••••" required>
         </div>
         <button type="submit" class="btn-primary btn-full" style="margin-top: 0.5rem;">Acessar Dashboard</button>
+        
+        <!-- Botão Google Login -->
+        <button type="button" id="btn-login-google" class="btn-secondary btn-full" style="margin-top: 0.5rem; display: none;">
+          <span style="margin-right: 5px;">🔑</span> Entrar com o Google
+        </button>
       </form>
 
       <!-- Formulário de Registro de Admin -->
       <form id="form-register" class="auth-form">
         <div class="form-group">
-          <label for="reg-username">Nome de Usuário (Username)</label>
-          <input type="text" id="reg-username" class="input-modern" placeholder="ex: wilson_diretor" required>
+          <label for="reg-username">E-mail</label>
+          <input type="email" id="reg-username" class="input-modern" placeholder="ex: diretor@gmail.com" required>
         </div>
         <div class="form-group">
           <label for="reg-password">Criar Senha</label>

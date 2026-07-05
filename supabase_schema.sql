@@ -4,8 +4,8 @@
 -- 1. Tabela de Usuários
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT, -- Nulo para logins via Supabase Auth / Google OAuth
     role TEXT NOT NULL CHECK (role IN ('admin', 'instructor', 'participant')),
     name TEXT NOT NULL,
     clube TEXT,

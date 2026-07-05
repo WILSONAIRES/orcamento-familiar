@@ -22,6 +22,8 @@ import {
   DEFAULT_CAMPAIGN_GOALS 
 } from '../mockData.js';
 
+import { createClient } from '@supabase/supabase-js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -29,6 +31,14 @@ const app = express();
 const PORT = process.env.PORT || 5173;
 const SECRET_KEY = process.env.JWT_SECRET || 'missao_familia_secret_key_desbravadores';
 const ADMIN_SECURITY_CODE = 'DESBRAVADORES';
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || SUPABASE_KEY;
+let supabase = null;
+if (SUPABASE_URL && SUPABASE_KEY) {
+  supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+}
 
 app.use(cors());
 app.use(express.json());
@@ -42,17 +52,62 @@ const LEISURE_OPTIONS = {
 };
 
 // --- MIDDLEWARE DE AUTENTICAÇÃO JWT ---
-function authenticateToken(req, res, next) {
+async function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) return res.status(401).json({ message: 'Token de autenticação não fornecido.' });
 
-  jwt.verify(token, SECRET_KEY, (err, decoded) => {
-    if (err) return res.status(403).json({ message: 'Sessão expirada ou token inválido.' });
-    req.user = decoded;
+  try {
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+      // Modo offline (Local JSON)
+      jwt.verify(token, SECRET_KEY, (err, decoded) => {
+        if (err) return res.status(403).json({ message: 'Sessão expirada ou token inválido.' });
+        req.user = decoded;
+        next();
+      });
+      return;
+    }
+
+    // Modo Supabase Auth
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) {
+      return res.status(403).json({ message: 'Sessão expirada ou token inválido no Supabase.' });
+    }
+
+    const profile = await db.getUser(user.email);
+    if (!profile) {
+      // Novo usuário via Google/OAuth com perfil público pendente de preenchimento
+      req.user = { id: user.id, username: user.email, email: user.email, isNewUser: true };
+      
+      const allowedPaths = ['/api/auth/me', '/api/auth/complete-profile'];
+      if (allowedPaths.includes(req.path)) {
+        return next();
+      }
+      return res.status(403).json({ isNewUser: true, message: 'Cadastro de perfil pendente. Complete seu registro.' });
+    }
+
+    req.user = {
+      id: profile.id,
+      username: profile.email,
+      email: profile.email,
+      role: profile.role,
+      name: profile.name,
+      participantId: null
+    };
+
+    if (profile.role === 'participant') {
+      const part = await db.getParticipantByUserId(profile.id);
+      if (part) {
+        req.user.participantId = part.id;
+      }
+    }
+
     next();
-  });
+  } catch (err) {
+    console.error(err);
+    res.status(403).json({ message: 'Sessão inválida.' });
+  }
 }
 
 // Middleware de validação do Admin
@@ -64,6 +119,151 @@ function requireAdmin(req, res, next) {
 }
 
 // --- ROTAS DA API DE AUTENTICAÇÃO ---
+
+// Fornece a configuração do Supabase para o cliente browser
+app.get('/api/config', (req, res) => {
+  res.json({
+    supabaseUrl: SUPABASE_URL || null,
+    supabaseAnonKey: SUPABASE_ANON_KEY || null
+  });
+});
+
+// Retorna as informações do usuário atual baseado no JWT fornecido
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+  if (req.user.isNewUser) {
+    return res.json({ isNewUser: true, email: req.user.email });
+  }
+  try {
+    const user = await db.getUser(req.user.email);
+    if (!user) return res.status(404).json({ message: 'Perfil não encontrado.' });
+    res.json({
+      user: {
+        id: user.id,
+        username: user.email,
+        email: user.email,
+        role: user.role,
+        name: user.name,
+        participantId: req.user.participantId
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro ao obter dados de login.' });
+  }
+});
+
+// Finaliza o cadastro de perfil para quem fez login com o Google/OAuth
+app.post('/api/auth/complete-profile', authenticateToken, async (req, res) => {
+  if (!req.user.isNewUser) {
+    return res.status(400).json({ message: 'Perfil já configurado.' });
+  }
+  const { name, clube, unidade, age } = req.body;
+  const role = 'participant'; // Padrão jogador para desbravadores via Google
+
+  try {
+    const existingUser = await db.getUser(req.user.email);
+    if (existingUser) {
+      return res.status(400).json({ message: 'Perfil já existe no banco de dados.' });
+    }
+
+    const newUser = {
+      id: req.user.id,
+      email: req.user.email,
+      password_hash: null,
+      role,
+      name,
+      clube: clube || null,
+      unidade: unidade || null,
+      age: age ? parseInt(age) : null
+    };
+
+    await db.createUser(newUser);
+
+    // Gerar faturas e casa virtual inicial
+    const activeCampaign = await db.getActiveCampaign();
+    if (!activeCampaign) {
+      return res.status(500).json({ message: 'Campanha ativa não configurada.' });
+    }
+
+    const diff = INITIAL_DIFFICULTIES[activeCampaign.difficulty];
+    const familyTemplate = PRECONFIGURED_FAMILIES.find(f => f.id === activeCampaign.familyTypeId) || PRECONFIGURED_FAMILIES[1];
+
+    const baseSalary = activeCampaign.salaryType === 'fixed' 
+      ? activeCampaign.fixedSalary 
+      : Math.floor(activeCampaign.minSalary + Math.random() * (activeCampaign.maxSalary - activeCampaign.minSalary));
+
+    const finalSalary = Math.round(baseSalary * diff.incomeMultiplier);
+    const finalBalance = Math.round(diff.startingBalance * diff.incomeMultiplier);
+
+    const participantId = 'part_' + Date.now();
+    const bills = [];
+    const sizeMult = familyTemplate.baseExpensesMultiplier;
+    
+    activeCampaign.accountsConfig.forEach(cfg => {
+      if (cfg.enabled) {
+        const val = cfg.minVal + Math.random() * (cfg.maxVal - cfg.minVal);
+        bills.push({
+          id: 'bill_' + cfg.id + '_1_' + Math.random().toString(36).substr(2, 4),
+          type: cfg.id, name: cfg.name, value: Math.round(val * sizeMult * diff.costMultiplier), dueWeek: 1
+        });
+      }
+    });
+
+    const categories = [
+      { id: 'transporte', name: 'Combustível/Transporte Público', perc: activeCampaign.expensesPercentages.transporte },
+      { id: 'saude', name: 'Plano de Saúde / Higiene Familiar', perc: activeCampaign.expensesPercentages.saude },
+      { id: 'higiene', name: 'Produtos de Limpeza e Higiene', perc: activeCampaign.expensesPercentages.higiene },
+      { id: 'educacao', name: 'Mensalidades / Material Escolar', perc: activeCampaign.expensesPercentages.educacao }
+    ];
+
+    categories.forEach(cat => {
+      if (cat.perc > 0) {
+        let val = (finalSalary * (cat.perc / 100)) * (0.9 + Math.random() * 0.2);
+        bills.push({
+          id: 'bill_' + cat.id + '_1_' + Math.random().toString(36).substr(2, 4),
+          type: cat.id, name: cat.name, value: Math.round(val * sizeMult * diff.costMultiplier), dueWeek: 1
+        });
+      }
+    });
+
+    const newParticipant = {
+      id: participantId,
+      userId: req.user.id,
+      campaignId: activeCampaign.id,
+      week: 1, finished: 0, balance: finalBalance, reserve: 0.0, salary: finalSalary,
+      family: familyTemplate, loans: [], pendingLoans: [],
+      investments: { poupanca: 0, cdb: 0, tesouro_direto: 0, fundo_acoes: 0 },
+      indicators: { health: 75, happiness: 75, cleanliness: 75, financial: 50 },
+      energy: 100, activeIllnesses: [], activeEvents: [],
+      unpaidBills: bills, overdueBills: [],
+      tasksCompletedThisWeek: [], extraIncomeCompletedThisWeek: [], customExtraIncomePending: [],
+      goalsStatus: {}, boughtFoodThisMonth: false,
+      notifications: [{ type: 'info', text: 'Você ativou sua conta com o Google! Compre alimentos para iniciar.' }]
+    };
+
+    await db.createParticipant(newParticipant);
+
+    await db.addHistorySnapshot({
+      id: 'snap_' + participantId + '_1',
+      participantId, week: 1, balance: finalBalance, reserve: 0,
+      investments: { poupanca: 0, cdb: 0, tesouro_direto: 0, fundo_acoes: 0 },
+      indicators: { health: 75, happiness: 75, cleanliness: 75, financial: 50 },
+      debt: 0, netWorth: finalBalance
+    });
+
+    await db.addAuditLog({
+      id: 'log_' + Date.now(),
+      timestamp: new Date().toISOString(),
+      username: name,
+      action: 'Novo Cadastro de Aluno (Google)',
+      details: `Participante ${name} (Unidade: ${unidade}) criado via Google.`
+    });
+
+    res.json({ success: true, message: 'Perfil criado!', participantId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro ao finalizar o cadastro de perfil.' });
+  }
+});
 
 // Registro (Cadastro) de Usuários
 app.post('/api/auth/register', async (req, res) => {

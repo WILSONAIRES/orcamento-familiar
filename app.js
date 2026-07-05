@@ -1,6 +1,6 @@
 /**
  * Missão Família - Simulador de Orçamento Familiar
- * Orquestrador Principal e Controlador de Acesso (Assíncrono)
+ * Orquestrador Principal e Controlador de Acesso (Assíncrona)
  */
 
 import { engine } from './state.js';
@@ -27,8 +27,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   const viewAdmin = document.getElementById('view-admin');
   const viewParticipant = document.getElementById('view-participant');
 
+  const btnGoogle = document.getElementById('btn-login-google');
+  const modalOnboarding = document.getElementById('modal-onboarding');
+  const formOnboarding = document.getElementById('form-onboarding');
+
   // Detecta se estamos fisicamente no painel do administrador (admin.html)
   const isAdminPage = window.location.pathname.includes('admin.html');
+
+  // 1. Inicializar Supabase se as variáveis estiverem configuradas
+  const isSupabaseActive = await engine.initializeSupabase();
+
+  if (isSupabaseActive && btnGoogle) {
+    btnGoogle.style.display = 'block'; // Mostra botão de login com o Google
+  }
 
   // --- ALTERNAR ABAS DE ENTRADA (LOGIN / REGISTRO) ---
   if (btnTabLogin && btnTabRegister) {
@@ -69,6 +80,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const res = await engine.login(userVal, passVal);
       if (res.success) {
+        if (res.isNewUser) {
+          // Usuário cadastrado no Auth mas sem perfil público
+          if (authContainer) authContainer.style.display = 'none';
+          if (modalOnboarding) modalOnboarding.style.display = 'flex';
+          return;
+        }
+
         // Validação estrita de página e papel
         if (isAdminPage && res.user.role !== 'admin') {
           alert("Acesso Negado: Esta página é restrita a administradores.");
@@ -77,7 +95,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (!isAdminPage && res.user.role === 'admin') {
-          // Redireciona o administrador logado no index.html para o admin.html
           alert("Bem-vindo, Diretor! Redirecionando para o Painel Administrativo...");
           window.location.href = 'admin.html';
           return;
@@ -91,6 +108,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // --- SUBMETER LOGIN GOOGLE ---
+  if (btnGoogle) {
+    btnGoogle.addEventListener('click', async () => {
+      const res = await engine.loginWithGoogle();
+      if (res && !res.success) {
+        alert(res.message);
+      }
+    });
+  }
+
+  // --- SUBMETER ONBOARDING (GOOGLE/OAUTH PRIMEIRO LOGIN) ---
+  if (formOnboarding) {
+    formOnboarding.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('onb-name').value;
+      const clube = document.getElementById('onb-clube').value;
+      const unidade = document.getElementById('onb-unidade').value;
+      const age = parseInt(document.getElementById('onb-age').value);
+
+      const res = await engine.completeProfile(name, clube, unidade, age);
+      alert(res.message);
+      if (res.success) {
+        if (modalOnboarding) modalOnboarding.style.display = 'none';
+        // Recarregar para bootstrap limpo com os novos dados
+        window.location.reload();
+      }
+    });
+  }
+
   // --- SUBMETER REGISTRO ---
   if (formRegister) {
     formRegister.addEventListener('submit', async (e) => {
@@ -99,9 +145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const pass = document.getElementById('reg-password').value;
       const name = document.getElementById('reg-name').value;
       
-      // Papel implícito de acordo com a página atual
       const role = isAdminPage ? 'admin' : 'participant';
-      
       let clube = null, unidade = null, age = null, adminCode = null;
 
       if (role === 'admin') {
@@ -130,7 +174,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // --- CONTROLES DO HEADER (APENAS PARA PÁGINA PARTICIPANTE QUANDO SIMULADA POR ADMIN) ---
+  // --- CONTROLES DE SIMULAÇÃO (APENAS PARA PÁGINA PARTICIPANTE QUANDO SIMULADA POR ADMIN) ---
   if (profileSelector) {
     profileSelector.addEventListener('change', async (e) => {
       const role = e.target.value;
@@ -157,7 +201,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       await refreshParticipantView();
       const activeOverlay = document.querySelector('.modal-overlay[style*="display: flex"]');
       if (activeOverlay) {
-        activeOverlay.style.display = 'none'; // Fecha modais abertos ao trocar de jogador
+        activeOverlay.style.display = 'none';
       }
     });
   }
@@ -167,6 +211,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function bootstrapUserSession() {
     const user = engine.currentUser;
     if (!user) return;
+
+    // Se perfil do usuário estiver incompleto (OAuth Google)
+    if (user.isNewUser) {
+      if (authContainer) authContainer.style.display = 'none';
+      if (modalOnboarding) modalOnboarding.style.display = 'flex';
+      return;
+    }
 
     if (isAdminPage) {
       // 1. Cenário: Página admin.html
@@ -183,7 +234,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
       // 2. Cenário: Página index.html (Participante)
       if (user.role === 'admin') {
-        // Redireciona administrador para admin.html
         window.location.href = 'admin.html';
         return;
       }
@@ -201,7 +251,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Helper para obter o ID do participante ativo
   function pId() {
     return engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
   }
@@ -209,6 +258,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // --- CONTROLE DE CARGA INICIAL ---
   if (engine.isAuthenticated()) {
     const user = engine.currentUser;
+
+    if (user.isNewUser) {
+      if (authContainer) authContainer.style.display = 'none';
+      if (modalOnboarding) modalOnboarding.style.display = 'flex';
+      return;
+    }
     
     // Verificações cruzadas de página e papel
     if (isAdminPage && user.role !== 'admin') {
@@ -218,7 +273,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     if (!isAdminPage && user.role === 'admin') {
-      // Redireciona diretor no index.html para admin.html
       window.location.href = 'admin.html';
       return;
     }

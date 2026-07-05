@@ -21,7 +21,7 @@ class SupabaseDbAdapter {
     const { data, error } = await supabase
       .from('users')
       .select('*')
-      .eq('username', username.toLowerCase())
+      .eq('email', username.toLowerCase())
       .maybeSingle();
     
     if (error) throw error;

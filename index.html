@@ -11,6 +11,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   
   <link rel="stylesheet" href="style.css">
+  
+  <!-- Supabase JS Browser SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -31,21 +34,26 @@
       <!-- Formulário de Login -->
       <form id="form-login" class="auth-form active">
         <div class="form-group">
-          <label for="login-username">Nome de Usuário</label>
-          <input type="text" id="login-username" class="input-modern" required placeholder="Ex: wilson" autocomplete="username">
+          <label for="login-username">E-mail</label>
+          <input type="email" id="login-username" class="input-modern" required placeholder="Ex: julia@gmail.com" autocomplete="username">
         </div>
         <div class="form-group">
           <label for="login-password">Senha</label>
           <input type="password" id="login-password" class="input-modern" required placeholder="Sua senha" autocomplete="current-password">
         </div>
         <button type="submit" class="btn-primary btn-full" style="margin-top: 10px;">Entrar na Simulação</button>
+        
+        <!-- Botão Google Login -->
+        <button type="button" id="btn-login-google" class="btn-secondary btn-full" style="margin-top: 10px; display: none;">
+          <span style="margin-right: 5px;">🔑</span> Entrar com o Google
+        </button>
       </form>
       
       <!-- Formulário de Registro -->
       <form id="form-register" class="auth-form">
         <div class="form-group">
-          <label for="reg-username">Nome de Usuário</label>
-          <input type="text" id="reg-username" class="input-modern" required placeholder="Ex: julia" autocomplete="username">
+          <label for="reg-username">E-mail</label>
+          <input type="email" id="reg-username" class="input-modern" required placeholder="Ex: julia@gmail.com" autocomplete="username">
         </div>
         <div class="form-group">
           <label for="reg-password">Senha</label>
@@ -711,6 +719,39 @@
           </div>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DE ONBOARDING: COMPLETAR PERFIL (GOOGLE LOGIN) -->
+  <div class="modal-overlay" id="modal-onboarding" style="display: none; z-index: 20000; background: rgba(5, 8, 16, 0.95);">
+    <div class="modal-card glass-panel small-modal" style="border: 1px solid var(--primary-glow); box-shadow: 0 0 35px var(--primary-glow);">
+      <div class="modal-header" style="justify-content: center; border-bottom: none;">
+        <h2 style="font-size:1.4rem; text-align:center;">📋 Complete seu Cadastro</h2>
+      </div>
+      <div class="modal-body" style="padding-top: 0;">
+        <p class="intro-p" style="text-align: center; margin-bottom: 1.5rem; font-size:0.85rem;">
+          Você se autenticou com sucesso! Agora, insira os dados do seu perfil para criar a residência da sua família no simulador.
+        </p>
+        <form id="form-onboarding">
+          <div class="form-group" style="margin-bottom: 0.8rem;">
+            <label for="onb-name" style="font-size:0.8rem;">Seu Nome Completo:</label>
+            <input type="text" id="onb-name" class="input-modern" placeholder="ex: Lucas de Oliveira" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0.8rem;">
+            <label for="onb-clube" style="font-size:0.8rem;">Clube de Desbravadores:</label>
+            <input type="text" id="onb-clube" class="input-modern" placeholder="ex: Pioneiros" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0.8rem;">
+            <label for="onb-unidade" style="font-size:0.8rem;">Unidade:</label>
+            <input type="text" id="onb-unidade" class="input-modern" placeholder="ex: Águia" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 1.2rem;">
+            <label for="onb-age" style="font-size:0.8rem;">Sua Idade:</label>
+            <input type="number" id="onb-age" class="input-modern" min="9" max="18" placeholder="ex: 14" required>
+          </div>
+          <button type="submit" class="btn-primary btn-full">Criar Minha Família</button>
+        </form>
       </div>
     </div>
   </div>

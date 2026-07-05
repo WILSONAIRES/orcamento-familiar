@@ -12,7 +12,46 @@ class SimulationEngine {
     this.token = localStorage.getItem(STORAGE_KEY_TOKEN) || null;
     this.currentUser = JSON.parse(localStorage.getItem(STORAGE_KEY_USER)) || null;
     this.activeParticipantId = localStorage.getItem(STORAGE_KEY_ACTIVE_PART) || null;
-    this.activeCampaignId = 'camp_2026'; // Identificador padrão da campanha
+    this.activeCampaignId = 'camp_2026';
+    this.supabaseClient = null;
+  }
+
+  // Inicializa o Supabase no browser se as credenciais estiverem disponíveis na API
+  async initializeSupabase() {
+    try {
+      const res = await fetch('/api/config');
+      const config = await res.json();
+      if (config.supabaseUrl && config.supabaseAnonKey) {
+        if (window.supabase) {
+          this.supabaseClient = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
+          
+          // Capturar sessão automática (ex: após redirecionamento do Google OAuth)
+          const { data: { session } } = await this.supabaseClient.auth.getSession();
+          if (session) {
+            this.token = session.access_token;
+            localStorage.setItem(STORAGE_KEY_TOKEN, this.token);
+            
+            // Buscar perfil
+            const profileRes = await this.getProfile();
+            if (profileRes.success && profileRes.user) {
+              this.currentUser = profileRes.user;
+              this.activeParticipantId = profileRes.user.participantId;
+              localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(this.currentUser));
+              if (this.activeParticipantId) {
+                localStorage.setItem(STORAGE_KEY_ACTIVE_PART, this.activeParticipantId);
+              }
+            } else if (profileRes.isNewUser) {
+              this.currentUser = { email: profileRes.email, isNewUser: true };
+              localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(this.currentUser));
+            }
+          }
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn("Falha ao inicializar o Supabase no navegador:", err);
+    }
+    return false;
   }
 
   // --- CONTROLE DE AUTENTICAÇÃO ---
@@ -23,6 +62,41 @@ class SimulationEngine {
 
   async login(username, password) {
     try {
+      // Se o Supabase estiver ativo no browser
+      if (this.supabaseClient) {
+        const { data, error } = await this.supabaseClient.auth.signInWithPassword({
+          email: username,
+          password: password
+        });
+
+        if (error) {
+          return { success: false, message: error.message };
+        }
+
+        this.token = data.session.access_token;
+        localStorage.setItem(STORAGE_KEY_TOKEN, this.token);
+
+        const profileRes = await this.getProfile();
+        if (profileRes.success && profileRes.user) {
+          this.currentUser = profileRes.user;
+          this.activeParticipantId = profileRes.user.participantId;
+          localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(this.currentUser));
+          if (this.activeParticipantId) {
+            localStorage.setItem(STORAGE_KEY_ACTIVE_PART, this.activeParticipantId);
+          } else {
+            localStorage.removeItem(STORAGE_KEY_ACTIVE_PART);
+          }
+          return { success: true, user: this.currentUser };
+        } else if (profileRes.isNewUser) {
+          this.currentUser = { email: profileRes.email, isNewUser: true };
+          localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(this.currentUser));
+          return { success: true, user: this.currentUser, isNewUser: true };
+        } else {
+          return { success: false, message: profileRes.message || 'Erro ao obter dados de perfil.' };
+        }
+      }
+
+      // Modo local offline (JSON)
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -34,7 +108,6 @@ class SimulationEngine {
         return { success: false, message: resData.message || 'Erro ao realizar login.' };
       }
 
-      // Guardar sessão
       this.token = resData.token;
       this.currentUser = resData.user;
       this.activeParticipantId = resData.user.participantId;
@@ -56,6 +129,31 @@ class SimulationEngine {
 
   async register(username, password, role, name, clube, unidade, age, adminCode) {
     try {
+      if (this.supabaseClient) {
+        const { data, error } = await this.supabaseClient.auth.signUp({
+          email: username,
+          password: password
+        });
+
+        if (error) {
+          return { success: false, message: error.message };
+        }
+
+        // Se a sessão iniciou imediatamente após o cadastro
+        if (data.session) {
+          this.token = data.session.access_token;
+          localStorage.setItem(STORAGE_KEY_TOKEN, this.token);
+          
+          // Cria o perfil público na nossa tabela
+          const createProfileRes = await this.completeProfile(name, clube, unidade, age);
+          return createProfileRes;
+        } else {
+          // Se requer validação por e-mail no Supabase
+          return { success: true, message: 'Cadastro efetuado! Verifique seu e-mail para confirmar a conta antes de logar.' };
+        }
+      }
+
+      // Modo local offline
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -73,7 +171,55 @@ class SimulationEngine {
     }
   }
 
-  logout() {
+  async loginWithGoogle() {
+    if (!this.supabaseClient) return { success: false, message: 'Supabase offline.' };
+    const { error } = await this.supabaseClient.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + window.location.pathname
+      }
+    });
+    if (error) return { success: false, message: error.message };
+    return { success: true };
+  }
+
+  async getProfile() {
+    try {
+      const res = await this.apiCall('/api/auth/me');
+      return { success: true, user: res.user, isNewUser: res.isNewUser, email: res.email };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  }
+
+  async completeProfile(name, clube, unidade, age) {
+    try {
+      const res = await this.apiCall('/api/auth/complete-profile', 'POST', { name, clube, unidade, age });
+      if (res.success) {
+        // Recarregar perfil completo
+        const me = await this.getProfile();
+        if (me.success) {
+          this.currentUser = me.user;
+          this.activeParticipantId = me.user.participantId;
+          localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(this.currentUser));
+          if (this.activeParticipantId) {
+            localStorage.setItem(STORAGE_KEY_ACTIVE_PART, this.activeParticipantId);
+          }
+        }
+      }
+      return res;
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  }
+
+  async logout() {
+    try {
+      if (this.supabaseClient) {
+        await this.supabaseClient.auth.signOut();
+      }
+    } catch (e) {}
+
     this.token = null;
     this.currentUser = null;
     this.activeParticipantId = null;
@@ -82,7 +228,6 @@ class SimulationEngine {
     localStorage.removeItem(STORAGE_KEY_USER);
     localStorage.removeItem(STORAGE_KEY_ACTIVE_PART);
 
-    // Recarregar SPA para tela de login
     window.location.reload();
   }
 
@@ -106,7 +251,7 @@ class SimulationEngine {
       const response = await fetch(url, options);
 
       // Tratar sessão expirada ou não autorizada
-      if (response.status === 401 || response.status === 403) {
+      if (response.status === 401 || (response.status === 403 && !url.includes('/api/auth/me') && !url.includes('/complete-profile'))) {
         console.warn("Sessão inválida ou expirada. Deslogando...");
         this.logout();
         throw new Error('Sessão expirada. Faça login novamente.');
@@ -114,6 +259,10 @@ class SimulationEngine {
 
       const resData = await response.json();
       if (!response.ok) {
+        // Se for status 403 e tiver pendência de onboarding
+        if (resData.isNewUser) {
+          return resData;
+        }
         throw new Error(resData.message || 'Erro na requisição da API.');
       }
       return resData;

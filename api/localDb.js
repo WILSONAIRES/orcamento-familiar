@@ -50,10 +50,10 @@ class LocalDbAdapter {
 
     const initialDb = {
       users: [
-        { id: 'admin_1', username: 'admin', password_hash: adminPassHash, role: 'admin', name: 'Diretor Wilson Aires' },
-        { id: 'user_wilson', username: 'wilson', password_hash: passHash123, role: 'participant', name: 'Wilson Aires', clube: 'Clube Pioneiros', unidade: 'Águia', age: 14 },
-        { id: 'user_lucas', username: 'lucas', password_hash: passHash123, role: 'participant', name: 'Lucas Oliveira', clube: 'Clube Pioneiros', unidade: 'Falcão', age: 13 },
-        { id: 'user_melissa', username: 'melissa', password_hash: passHash123, role: 'participant', name: 'Melissa Costa', clube: 'Clube Pioneiros', unidade: 'Rosa de Saron', age: 15 }
+        { id: 'admin_1', email: 'admin@gmail.com', username: 'admin', password_hash: adminPassHash, role: 'admin', name: 'Diretor Wilson Aires' },
+        { id: 'user_wilson', email: 'wilson@gmail.com', username: 'wilson', password_hash: passHash123, role: 'participant', name: 'Wilson Aires', clube: 'Clube Pioneiros', unidade: 'Águia', age: 14 },
+        { id: 'user_lucas', email: 'lucas@gmail.com', username: 'lucas', password_hash: passHash123, role: 'participant', name: 'Lucas Oliveira', clube: 'Clube Pioneiros', unidade: 'Falcão', age: 13 },
+        { id: 'user_melissa', email: 'melissa@gmail.com', username: 'melissa', password_hash: passHash123, role: 'participant', name: 'Melissa Costa', clube: 'Clube Pioneiros', unidade: 'Rosa de Saron', age: 15 }
       ],
       campaigns: [
         {
@@ -168,9 +168,13 @@ class LocalDbAdapter {
 
   // --- API DO ADAPTADOR ---
 
-  async getUser(username) {
+  async getUser(usernameOrEmail) {
     const data = await this.load();
-    return data.users.find(u => u.username === username.toLowerCase()) || null;
+    const identifier = usernameOrEmail.toLowerCase();
+    return data.users.find(u => 
+      (u.email && u.email.toLowerCase() === identifier) || 
+      (u.username && u.username.toLowerCase() === identifier)
+    ) || null;
   }
 
   async getUserById(id) {
