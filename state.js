@@ -258,8 +258,22 @@ class SimulationEngine {
   }
 
   async advanceParticipantWeek(participantId) {
+    // Redireciona para o endpoint de ciclo se o front tentar avançar diretamente
+    return await this.advanceCycleAdmin(participantId);
+  }
+
+  async executeLeisure(participantId, optionId) {
     try {
-      const res = await this.apiCall(`/api/participant/${participantId}/advance-week`, 'POST');
+      const res = await this.apiCall(`/api/participant/${participantId}/execute-leisure`, 'POST', { optionId });
+      return res;
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  }
+
+  async repairBreakdown(participantId, eventId) {
+    try {
+      const res = await this.apiCall(`/api/participant/${participantId}/repair-breakdown`, 'POST', { eventId });
       return res;
     } catch (err) {
       return { success: false, message: err.message };
@@ -267,6 +281,24 @@ class SimulationEngine {
   }
 
   // --- AÇÕES DO ADMINISTRADOR ---
+
+  async advanceCycleAdmin(participantId) {
+    try {
+      const res = await this.apiCall('/api/admin/advance-cycle', 'POST', { participantId });
+      return res;
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  }
+
+  async advanceAllCyclesAdmin() {
+    try {
+      const res = await this.apiCall('/api/admin/advance-all-cycles', 'POST');
+      return res;
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  }
 
   async processLoanRequest(participantId, loanId, action, modifiedParams = null) {
     try {

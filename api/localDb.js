@@ -93,6 +93,7 @@ class LocalDbAdapter {
           indicators: { health: 80, happiness: 85, cleanliness: 75, financial: 65 }, energy: 100,
           activeIllnesses: [], activeEvents: [], unpaidBills: [], overdueBills: [],
           tasksCompletedThisWeek: [], extraIncomeCompletedThisWeek: [], customExtraIncomePending: [], goalsStatus: {},
+          boughtFoodThisMonth: false,
           notifications: [{ type: 'info', text: 'Bem-vindo ao simulador Missão Família! Seu primeiro salário foi creditado.' }]
         },
         {
@@ -104,6 +105,7 @@ class LocalDbAdapter {
           activeIllnesses: [], activeEvents: [], unpaidBills: [],
           overdueBills: [{ id: 'bill_luz_old', name: 'Conta de Luz Atrasada', value: 180, originalValue: 180, dueWeek: 0, fineApplied: 3.6, interestApplied: 1.8, totalValue: 185.4 }],
           tasksCompletedThisWeek: [], extraIncomeCompletedThisWeek: [], customExtraIncomePending: [], goalsStatus: {},
+          boughtFoodThisMonth: false,
           notifications: [{ type: 'warning', text: 'Cuidado! Você começou com uma conta de luz atrasada e um empréstimo.' }]
         },
         {
@@ -113,6 +115,7 @@ class LocalDbAdapter {
           indicators: { health: 90, happiness: 90, cleanliness: 90, financial: 80 }, energy: 100,
           activeIllnesses: [], activeEvents: [], unpaidBills: [], overdueBills: [],
           tasksCompletedThisWeek: [], extraIncomeCompletedThisWeek: [], customExtraIncomePending: [], goalsStatus: {},
+          boughtFoodThisMonth: false,
           notifications: [{ type: 'success', text: 'Excelente início! Suas economias e investimentos estão saudáveis.' }]
         }
       ],
@@ -143,10 +146,8 @@ class LocalDbAdapter {
         }
       });
 
-      // Gerar percentuais do salário
+      // Gerar percentuais do salário (removidos alimentação e moradia)
       const categories = [
-        { id: 'alimentacao', name: 'Supermercado (Alimentação)', perc: campaign.expensesPercentages.alimentacao },
-        { id: 'moradia', name: 'Despesas de Moradia/Manutenção', perc: campaign.expensesPercentages.moradia },
         { id: 'transporte', name: 'Combustível/Transporte Público', perc: campaign.expensesPercentages.transporte },
         { id: 'saude', name: 'Plano de Saúde / Higiene Familiar', perc: campaign.expensesPercentages.saude }
       ];

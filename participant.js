@@ -15,6 +15,13 @@ let activeOpenModalId = null;
 let currentInvProductAction = null; // 'cdb', 'poupanca', etc.
 let currentInvActionType = null;    // 'deposit' ou 'withdraw'
 
+const LEISURE_OPTIONS = [
+  { id: 'streaming', name: 'Filme em Casa (Streaming)', cost: 15, happiness: 5, energy: 5, emoji: '📺', description: 'Assista a um filme legal reunindo a família na sala.' },
+  { id: 'park', name: 'Passeio no Parque / Piquenique', cost: 40, happiness: 10, energy: 10, emoji: '🧺', description: 'Dia de sol, ar livre e comunhão com a natureza no parque.' },
+  { id: 'cinema', name: 'Cinema & Lanches em Família', cost: 120, happiness: 22, energy: 15, emoji: '🍿', description: 'Uma saída especial para assistir a uma estreia e comer pipoca.' },
+  { id: 'trip', name: 'Viagem de Fim de Semana', cost: 500, happiness: 50, energy: 25, emoji: '🏕️', description: 'Acampamento ou passeio em parque temático no fim de semana.' }
+];
+
 export function initParticipantView() {
   // --- NAVEGAÇÃO DE MODAIS (AMBIENTES) ---
   const roomCards = document.querySelectorAll('.room-card');
@@ -42,21 +49,11 @@ export function initParticipantView() {
     });
   });
 
-  // --- BOTÃO DE AVANÇO MENSAL (FECHAMENTO) ---
+  // --- BOTÃO DE AVANÇO MENSAL (FECHAMENTO PELO ALUNO REMOVIDO / DESATIVADO) ---
   const btnAdvance = document.getElementById('btn-advance-month');
   if (btnAdvance) {
-    btnAdvance.addEventListener('click', async () => {
-      const currentId = engine.state.activeParticipantId;
-      if (confirm("Tem certeza que deseja fechar as contas deste mês? O sistema processará salários, contas atrasadas, parcelas de empréstimos e investimentos.")) {
-        const res = await engine.advanceParticipantWeek(currentId);
-        alert(res.message);
-        
-        // Atualizar views
-        await refreshParticipantView();
-        if (activeOpenModalId) {
-          await renderModalContent(activeOpenModalId);
-        }
-      }
+    btnAdvance.addEventListener('click', () => {
+      alert("Apenas o Diretor do Clube de Desbravadores pode fechar o mês no simulador.");
     });
   }
 
@@ -65,7 +62,7 @@ export function initParticipantView() {
   if (formLoan) {
     formLoan.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const currentId = engine.state.activeParticipantId;
+      const currentId = engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
       const amount = parseFloat(document.getElementById('loan-amount').value);
       const term = parseInt(document.getElementById('loan-term').value);
       const justification = document.getElementById('loan-justification').value;
@@ -115,7 +112,7 @@ export function initParticipantView() {
 
   if (btnReserveDep) {
     btnReserveDep.addEventListener('click', async () => {
-      const currentId = engine.state.activeParticipantId;
+      const currentId = engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
       const amt = parseFloat(reserveAmtInput.value) || 0;
       const res = await engine.manageReserve(currentId, 'deposit', amt);
       alert(res.message);
@@ -129,7 +126,7 @@ export function initParticipantView() {
 
   if (btnReserveWith) {
     btnReserveWith.addEventListener('click', async () => {
-      const currentId = engine.state.activeParticipantId;
+      const currentId = engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
       const amt = parseFloat(reserveAmtInput.value) || 0;
       const res = await engine.manageReserve(currentId, 'withdraw', amt);
       alert(res.message);
@@ -144,7 +141,7 @@ export function initParticipantView() {
   // --- COMPRA DE ALIMENTOS NO MERCADO ---
   document.querySelectorAll('.btn-buy-food').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const currentId = engine.state.activeParticipantId;
+      const currentId = engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
       const option = btn.getAttribute('data-option');
       const res = await engine.buyMarketFood(currentId, option);
       alert(res.message);
@@ -160,7 +157,7 @@ export function initParticipantView() {
   if (formCustomInc) {
     formCustomInc.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const currentId = engine.state.activeParticipantId;
+      const currentId = engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
       const name = document.getElementById('custom-inc-name').value;
       const desc = document.getElementById('custom-inc-desc').value;
       const reward = parseFloat(document.getElementById('custom-inc-reward').value);
@@ -188,7 +185,7 @@ export function initParticipantView() {
 
   if (btnInvSubmit) {
     btnInvSubmit.addEventListener('click', async () => {
-      const currentId = engine.state.activeParticipantId;
+      const currentId = engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
       const amount = parseFloat(inputInvAmt.value) || 0;
       
       let res;
@@ -230,7 +227,7 @@ function closeParticipantModal() {
 
 // Renderizar painel geral
 export async function refreshParticipantView() {
-  const pId = engine.state.activeParticipantId;
+  const pId = engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
   if (!pId) return;
 
   try {
@@ -277,6 +274,18 @@ export async function refreshParticipantView() {
       badgeSick.style.display = 'none';
     }
 
+    // Badge de Manutenções pendentes
+    const breakdownCount = p.activeEvents.filter(e => e.isBreakdown).length;
+    const badgeMaint = document.getElementById('badge-maintenance');
+    if (badgeMaint) {
+      if (breakdownCount > 0) {
+        badgeMaint.textContent = breakdownCount;
+        badgeMaint.style.display = 'flex';
+      } else {
+        badgeMaint.style.display = 'none';
+      }
+    }
+
     // Notificações feed
     const notifContainer = document.getElementById('player-notifications-list');
     if (notifContainer) {
@@ -299,7 +308,7 @@ export async function refreshParticipantView() {
 
 // Renderizar o conteúdo do modal aberto
 async function renderModalContent(modalId) {
-  const pId = engine.state.activeParticipantId;
+  const pId = engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
   const p = await engine.getParticipantById(pId);
   const campaign = await engine.getActiveCampaign();
   if (!p || !campaign) return;
@@ -328,20 +337,35 @@ async function renderModalContent(modalId) {
         alertContainer.appendChild(alertCard);
       });
 
-      // Eventos
+      // Eventos e Quebras
       p.activeEvents.forEach(evt => {
         alertsFound = true;
         const alertCard = document.createElement('div');
-        alertCard.className = 'alert-item-card warning';
+        const isBreak = evt.isBreakdown;
+        alertCard.className = `alert-item-card ${isBreak ? 'danger' : 'warning'}`;
         alertCard.innerHTML = `
           <div>
-            <h5>⚠️ Evento Ocorrido: ${evt.name}</h5>
-            <p>${evt.description} Impacto financeiro: R$ ${evt.impact}.</p>
-            <p class="alert-tip">💡 Conselho: ${evt.tip}</p>
+            <h5>${isBreak ? '🛠️ QUEBRA ESTRUTURAL' : '⚠️ Evento Ocorrido'}: ${evt.name}</h5>
+            <p>${evt.description} ${isBreak ? 'Custo de reparo: R$ ' + evt.repairCost : 'Impacto financeiro: R$ ' + evt.impact}</p>
+            <p class="alert-tip">${isBreak ? '🔧 Acesse a aba **Consertos da Casa** para pagar o encanador/eletricista.' : '💡 Conselho: ' + evt.tip}</p>
           </div>
         `;
         alertContainer.appendChild(alertCard);
       });
+
+      if (!p.boughtFoodThisMonth) {
+        alertsFound = true;
+        const alertCard = document.createElement('div');
+        alertCard.className = 'alert-item-card danger';
+        alertCard.innerHTML = `
+          <div>
+            <h5>🛒 Despensa Vazia (Risco de Fome)</h5>
+            <p>Sua família ainda não tem alimentos registrados para este mês.</p>
+            <p class="alert-tip">🍎 **IMPORTANTE**: Compre comida no Supermercado antes do final do mês ou a Saúde e Felicidade cairão para 0%!</p>
+          </div>
+        `;
+        alertContainer.appendChild(alertCard);
+      }
 
       if (!alertsFound) {
         alertContainer.innerHTML = '<p class="success-text">✔️ Tudo sob controle na residência! Nenhum evento de crise ou doença ativa.</p>';
@@ -358,13 +382,13 @@ async function renderModalContent(modalId) {
         narratorText.textContent = "A casa está muito suja. Vá nas 'Tarefas Domésticas' e limpe a casa ou lave a louça para evitar a proliferação de pragas.";
       } else if (p.balance < 100 && p.reserve === 0) {
         narratorTitle.textContent = "💸 Conselheiro Financeiro:";
-        narratorText.textContent = "Seu caixa está quase zerado e você não tem reserva! Experimente fazer renda extra (vender doces ou passear com cães) no módulo de Trabalho.";
+        narratorText.textContent = "Seu caixa está quase zerado e você não tem reserva! Experimente fazer renda extra (vender doces ou passear com cães) no trabalho.";
       } else if (p.overdueBills.length > 0) {
         narratorTitle.textContent = "🚨 Alerta de Contas:";
         narratorText.textContent = "Você tem faturas em atraso correndo juros e multa. Pague-as o quanto antes no menu 'Contas a Pagar' para recuperar a felicidade.";
       } else {
         narratorTitle.textContent = "🧓 Conselheiro Familiar:";
-        narratorText.textContent = "Excelente administração até o momento! Continue realizando tarefas físicas para manter a saúde e poupe parte do salário na reserva.";
+        narratorText.textContent = "Excelente administração até o momento! Compre alimentos, faça tarefas para manter a higiene e divirta-se moderadamente.";
       }
       break;
     }
@@ -408,6 +432,18 @@ async function renderModalContent(modalId) {
       document.getElementById('val-price-food-basic').textContent = `R$ ${Math.round(150 * sizeMult * diff.costMultiplier).toFixed(2)}`;
       document.getElementById('val-price-food-healthy').textContent = `R$ ${Math.round(300 * sizeMult * diff.costMultiplier).toFixed(2)}`;
       document.getElementById('val-price-food-premium').textContent = `R$ ${Math.round(500 * sizeMult * diff.costMultiplier).toFixed(2)}`;
+      break;
+    }
+
+    // 3.5. LAZER E RECREAÇÃO (🎡 NOVO)
+    case 'modal-leisure': {
+      renderLeisureActivities(p);
+      break;
+    }
+
+    // 3.6. CONSERTOS DA CASA (🛠️ NOVO)
+    case 'modal-maintenance': {
+      renderMaintenanceProblems(p);
       break;
     }
 
@@ -536,13 +572,13 @@ async function renderModalContent(modalId) {
 
       document.querySelectorAll('.btn-inv-action').forEach(btn => {
         btn.addEventListener('click', () => {
-          const pId = btn.getAttribute('data-id');
+          const prodId = btn.getAttribute('data-id');
           const type = btn.getAttribute('data-type');
           
-          currentInvProductAction = pId;
+          currentInvProductAction = prodId;
           currentInvActionType = type;
           
-          const prod = DEFAULT_INVESTMENT_PRODUCTS.find(x => x.id === pId);
+          const prod = DEFAULT_INVESTMENT_PRODUCTS.find(x => x.id === prodId);
           document.getElementById('inv-action-title').textContent = type === 'deposit' ? `Aplicar em ${prod.name}` : `Resgatar de ${prod.name}`;
           document.getElementById('inv-action-desc').textContent = type === 'deposit' ? `Transfira saldo da sua conta corrente para aplicar.` : `Resgate valores aplicados. Sujeito a taxas.`;
           
@@ -708,7 +744,7 @@ async function renderModalContent(modalId) {
       tableBody.innerHTML = '';
 
       if (!p.history || p.history.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="7" class="empty-state-text" style="text-align:center;">Ainda não há histórico consolidado. Complete o primeiro mês!</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7" class="empty-state-text" style="text-align:center;">Ainda não há histórico consolidado. Aguarde a virada do primeiro ciclo!</td></tr>';
       } else {
         const sortedHistory = [...p.history].sort((a,b) => a.week - b.week);
         sortedHistory.forEach(snap => {
@@ -728,4 +764,103 @@ async function renderModalContent(modalId) {
       break;
     }
   }
+}
+
+// Renderizar lista de opções de Lazer (🎡)
+function renderLeisureActivities(p) {
+  const container = document.getElementById('leisure-activities-list');
+  container.innerHTML = '';
+
+  LEISURE_OPTIONS.forEach(opt => {
+    const card = document.createElement('div');
+    card.className = 'chore-item-card';
+    card.style.display = 'flex';
+    card.style.flexDirection = 'column';
+    card.style.justifyContent = 'space-between';
+    card.style.padding = '1.2rem';
+
+    card.innerHTML = `
+      <div class="chore-meta">
+        <span style="font-size:2.5rem; display:block; margin-bottom: 5px;">${opt.emoji}</span>
+        <h4 style="font-size:1.1rem;">${opt.name}</h4>
+        <p style="font-size:0.8rem; color:var(--text-muted); margin: 6px 0;">${opt.description}</p>
+        <div class="chore-impacts-list" style="margin-top: 5px;">
+          <span class="warning-text" style="color:var(--warning); display:block; font-size:0.75rem;">😊 Felicidade: +${opt.happiness}%</span>
+          <span style="display:block; color:var(--text-muted); font-size:0.75rem;">Energia necessária: <strong>${opt.energy}%</strong></span>
+        </div>
+      </div>
+      <div class="price-action" style="margin-top: 15px;">
+        <span class="price" style="font-size:1.1rem; display:block; margin-bottom:5px;">Custo: R$ ${opt.cost}</span>
+        <button class="btn-primary btn-small btn-full btn-buy-leisure" data-id="${opt.id}">Comprar Lazer</button>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+
+  // Vincular clique do lazer
+  document.querySelectorAll('.btn-buy-leisure').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const optionId = btn.getAttribute('data-id');
+      const pId = engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
+      const res = await engine.executeLeisure(pId, optionId);
+      alert(res.message);
+      if (res.success) {
+        await refreshParticipantView();
+        renderLeisureActivities(p);
+      }
+    });
+  });
+}
+
+// Renderizar lista de consertos de quebras ativas (🛠️)
+function renderMaintenanceProblems(p) {
+  const container = document.getElementById('maintenance-problems-list');
+  container.innerHTML = '';
+
+  const breakdowns = p.activeEvents.filter(e => e.isBreakdown);
+
+  if (breakdowns.length === 0) {
+    container.innerHTML = '<p class="success-text" style="text-align:center; padding: 2rem 0; width:100%;">✔️ Nenhum equipamento ou estrutura quebrada em sua residência! Tudo em ordem.</p>';
+    return;
+  }
+
+  breakdowns.forEach(evt => {
+    const card = document.createElement('div');
+    card.className = 'approval-card';
+    card.innerHTML = `
+      <div class="approval-card-header">
+        <span>Ocorrência: <strong>Mês ${evt.weekTriggered}</strong></span>
+        <span class="badge-danger">Necessita Reparo</span>
+      </div>
+      <div class="approval-card-body">
+        <h4>🚨 ${evt.name}</h4>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin: 5px 0;">${evt.description}</p>
+        <p style="font-size:0.8rem; background:rgba(239, 68, 68, 0.05); padding:6px; border-radius:4px; margin-top:8px; border:1px solid rgba(239,68,68,0.1);">
+          ⚠️ **Impacto Contínuo**: Deteriora a Limpeza em **-15%** e a Felicidade em **-10%** no fim de cada ciclo se continuar quebrado!
+        </p>
+      </div>
+      <div class="approval-card-actions" style="justify-content: space-between; align-items:center;">
+        <span class="price green-text" style="font-weight:bold; font-size:1.1rem;">Custo do Reparo: R$ ${evt.repairCost.toFixed(2)}</span>
+        <button class="btn-primary btn-small btn-repair-breakdown" data-id="${evt.id}">🛠️ Pagar Conserto</button>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+
+  // Vincular clique de reparo
+  document.querySelectorAll('.btn-repair-breakdown').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const eventId = btn.getAttribute('data-id');
+      const pId = engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
+      const res = await engine.repairBreakdown(pId, eventId);
+      alert(res.message);
+      if (res.success) {
+        await refreshParticipantView();
+        
+        // Recarregar os dados localmente
+        const updatedParticipant = await engine.getParticipantById(pId);
+        renderMaintenanceProblems(updatedParticipant);
+      }
+    });
+  });
 }

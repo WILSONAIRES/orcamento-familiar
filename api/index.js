@@ -1,5 +1,5 @@
 /**
- * Missão Família - API Serverless Express
+ * Missão Família - API Serverless Express (Refinada com Novas Regras)
  * Roteador central compatível com Vercel Serverless Functions
  */
 
@@ -32,6 +32,14 @@ const ADMIN_SECURITY_CODE = 'DESBRAVADORES';
 
 app.use(cors());
 app.use(express.json());
+
+// --- TABELAS DE LAZER (CONFIGURAÇÃO) ---
+const LEISURE_OPTIONS = {
+  streaming: { id: 'streaming', name: 'Assistir Filme em Casa (Streaming)', cost: 15, happiness: 5, energy: 5 },
+  park: { id: 'park', name: 'Passeio no Parque / Piquenique', cost: 40, happiness: 10, energy: 10 },
+  cinema: { id: 'cinema', name: 'Cinema & Lanche em Família', cost: 120, happiness: 22, energy: 15 },
+  trip: { id: 'trip', name: 'Viagem de Fim de Semana / Recreação', cost: 500, happiness: 50, energy: 25 }
+};
 
 // --- MIDDLEWARE DE AUTENTICAÇÃO JWT ---
 function authenticateToken(req, res, next) {
@@ -73,7 +81,7 @@ app.post('/api/auth/register', async (req, res) => {
       }
     }
 
-    // Verificar se usuário existe no banco (Supabase/Local JSON)
+    // Verificar se usuário existe no banco
     const existingUser = await db.getUser(username);
     if (existingUser) {
       return res.status(400).json({ message: 'Nome de usuário já está em uso.' });
@@ -132,14 +140,12 @@ app.post('/api/auth/register', async (req, res) => {
         }
       });
 
+      // Faturas de percentuais do salário (removidos alimentação, moradia e lazer das contas fixas)
       const categories = [
-        { id: 'alimentacao', name: 'Supermercado (Alimentação)', perc: activeCampaign.expensesPercentages.alimentacao },
-        { id: 'moradia', name: 'Despesas de Moradia/Manutenção', perc: activeCampaign.expensesPercentages.moradia },
         { id: 'transporte', name: 'Combustível/Transporte Público', perc: activeCampaign.expensesPercentages.transporte },
         { id: 'saude', name: 'Plano de Saúde / Higiene Familiar', perc: activeCampaign.expensesPercentages.saude },
         { id: 'higiene', name: 'Produtos de Limpeza e Higiene', perc: activeCampaign.expensesPercentages.higiene },
-        { id: 'educacao', name: 'Mensalidades / Material Escolar', perc: activeCampaign.expensesPercentages.educacao },
-        { id: 'lazer', name: 'Lazer e Entretenimento', perc: activeCampaign.expensesPercentages.lazer }
+        { id: 'educacao', name: 'Mensalidades / Material Escolar', perc: activeCampaign.expensesPercentages.educacao }
       ];
 
       categories.forEach(cat => {
@@ -178,7 +184,8 @@ app.post('/api/auth/register', async (req, res) => {
         extraIncomeCompletedThisWeek: [],
         customExtraIncomePending: [],
         goalsStatus: {},
-        notifications: [{ type: 'info', text: 'Você iniciou a simulação! Organize suas despesas.' }]
+        boughtFoodThisMonth: false, // Inicia sem comprar comida
+        notifications: [{ type: 'info', text: 'Você iniciou a simulação! Compre alimentos no Supermercado para a família.' }]
       };
 
       // Inserir Participante
@@ -264,7 +271,6 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-
 // --- ROTAS DA API GERAL (PROTEGIDAS) ---
 
 // Retorna Campanha Ativa
@@ -280,7 +286,7 @@ app.get('/api/campaign', authenticateToken, async (req, res) => {
 
 // Atualizar Campanha (Admin Only)
 app.put('/api/campaign', authenticateToken, requireAdmin, async (req, res) => {
-  const { name, difficulty, durationWeeks, fixedSalary, expensesPercentages, lateFee, interestRate, loanConfig, weights } = req.body;
+  const { name, difficulty, durationWeeks, fixedSalary, lateFee, interestRate, loanConfig, weights } = req.body;
 
   try {
     const campaign = await db.getActiveCampaign();
@@ -292,7 +298,6 @@ app.put('/api/campaign', authenticateToken, requireAdmin, async (req, res) => {
       difficulty,
       durationWeeks,
       fixedSalary,
-      expensesPercentages,
       lateFee,
       interestRate,
       loanConfig,
@@ -301,7 +306,6 @@ app.put('/api/campaign', authenticateToken, requireAdmin, async (req, res) => {
 
     await db.updateCampaign(updated);
 
-    // Gravar auditoria
     await db.addAuditLog({
       id: 'log_' + Date.now(),
       timestamp: new Date().toISOString(),
@@ -341,7 +345,6 @@ app.get('/api/participant/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ message: 'Acesso não autorizado a esta família.' });
     }
 
-    // Buscar histórico de snapshots temporais
     const historySnaps = await db.getHistory(pId);
     p.history = historySnaps;
 
@@ -395,7 +398,7 @@ app.post('/api/participant/:id/pay-bill', authenticateToken, async (req, res) =>
   }
 });
 
-// Realizar Tarefas
+// Realizar Tarefas Domésticas (Limpeza)
 app.post('/api/participant/:id/execute-task', authenticateToken, async (req, res) => {
   const pId = req.params.id;
   const { taskId } = req.body;
@@ -433,6 +436,73 @@ app.post('/api/participant/:id/execute-task', authenticateToken, async (req, res
     res.json({ success: true, message: 'Tarefa executada!' });
   } catch (err) {
     res.status(500).json({ message: 'Erro ao realizar tarefa.' });
+  }
+});
+
+// Realizar Lazer Opcional
+app.post('/api/participant/:id/execute-leisure', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+  const { optionId } = req.body;
+
+  try {
+    const p = await db.getParticipantById(pId);
+    if (!p) return res.status(404).json({ message: 'Participante não encontrado.' });
+
+    const opt = LEISURE_OPTIONS[optionId];
+    if (!opt) return res.status(400).json({ message: 'Opção de lazer inválida.' });
+
+    if (p.energy < opt.energy) {
+      return res.status(400).json({ message: 'Energia física insuficiente para esta atividade de lazer.' });
+    }
+    if (p.balance < opt.cost) {
+      return res.status(400).json({ message: 'Saldo financeiro insuficiente para esta atividade de lazer.' });
+    }
+
+    p.balance -= opt.cost;
+    p.energy -= opt.energy;
+    p.indicators.happiness = Math.min(100, p.indicators.happiness + opt.happiness);
+    p.notifications.unshift({ 
+      type: 'success', 
+      text: `Lazer em família: '${opt.name}' concluído! Custo: R$ ${opt.cost}. Felicidade: +${opt.happiness}%.` 
+    });
+
+    await db.saveParticipant(p);
+    res.json({ success: true, message: 'Atividade de lazer realizada!' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro ao realizar lazer.' });
+  }
+});
+
+// Consertar Quebra
+app.post('/api/participant/:id/repair-breakdown', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+  const { eventId } = req.body;
+
+  try {
+    const p = await db.getParticipantById(pId);
+    if (!p) return res.status(404).json({ message: 'Participante não encontrado.' });
+
+    const evtIdx = p.activeEvents.findIndex(e => e.id === eventId && e.isBreakdown);
+    if (evtIdx === -1) return res.status(400).json({ message: 'Evento de quebra não encontrado ou já consertado.' });
+
+    const evt = p.activeEvents[evtIdx];
+    if (p.balance < evt.repairCost) {
+      return res.status(400).json({ message: `Saldo insuficiente para pagar o conserto (Custo: R$ ${evt.repairCost}).` });
+    }
+
+    p.balance -= evt.repairCost;
+    p.activeEvents.splice(evtIdx, 1); // Remove o evento ativo de quebra
+    p.notifications.unshift({ 
+      type: 'success', 
+      text: `Reparo realizado: '${evt.name}' consertado! Custou R$ ${evt.repairCost}.` 
+    });
+
+    await db.saveParticipant(p);
+    res.json({ success: true, message: 'Equipamento consertado!' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro ao consertar quebra.' });
   }
 });
 
@@ -654,7 +724,10 @@ app.post('/api/participant/:id/market-food', authenticateToken, async (req, res)
     p.balance -= cost;
     p.indicators.health = Math.max(0, Math.min(100, p.indicators.health + healthImpact));
     p.indicators.happiness = Math.max(0, Math.min(100, p.indicators.happiness + happinessImpact));
-    p.notifications.unshift({ type: 'success', text: `Compra de alimentação '${name}' efetuada por R$ ${cost}.` });
+    
+    // Grava compra de comida
+    p.boughtFoodThisMonth = true; 
+    p.notifications.unshift({ type: 'success', text: `Compra de alimentação '${name}' efetuada por R$ ${cost}. Família alimentada!` });
 
     await db.saveParticipant(p);
     res.json({ success: true, message: 'Comida comprada!' });
@@ -690,166 +763,207 @@ app.post('/api/participant/:id/buy-medicine', authenticateToken, async (req, res
   }
 });
 
-// Fechamento Mensal
-app.post('/api/participant/:id/advance-week', authenticateToken, async (req, res) => {
-  const pId = req.params.id;
+// --- ENCERRAMENTO DO MÊS (FUNÇÃO COMPARTILHADA DO BACKEND) ---
 
-  try {
-    const p = await db.getParticipantById(pId);
-    const campaign = await db.getActiveCampaign();
-    if (!p || !campaign) return res.status(404).json({ message: 'Erro ao carregar dados.' });
+async function advanceParticipantWeekLogic(pId, adminName) {
+  const p = await db.getParticipantById(pId);
+  const campaign = await db.getActiveCampaign();
+  if (!p || !campaign) throw new Error('Dados do participante ou campanha não encontrados.');
 
-    const diff = INITIAL_DIFFICULTIES[campaign.difficulty];
+  const diff = INITIAL_DIFFICULTIES[campaign.difficulty];
 
-    // 1. Salvar Snapshot Histórico
-    const liquidAssets = p.balance + p.reserve + Object.values(p.investments).reduce((sum, v) => sum + v, 0);
-    const debts = p.overdueBills.reduce((sum, b) => sum + (b.totalValue || b.value), 0) +
-                  p.loans.reduce((sum, l) => sum + (l.totalAmount - (l.paidTerms * l.monthlyPayment)), 0);
-    const netWorth = liquidAssets - debts;
+  // 1. Salvar Snapshot Histórico
+  const liquidAssets = p.balance + p.reserve + Object.values(p.investments).reduce((sum, v) => sum + v, 0);
+  const debts = p.overdueBills.reduce((sum, b) => sum + (b.totalValue || b.value), 0) +
+                p.loans.reduce((sum, l) => sum + (l.totalAmount - (l.paidTerms * l.monthlyPayment)), 0);
+  const netWorth = liquidAssets - debts;
 
-    const snap = {
-      id: 'snap_' + p.id + '_' + p.week,
-      participantId: p.id,
-      week: p.week,
-      balance: p.balance,
-      reserve: p.reserve,
-      investments: p.investments,
-      indicators: p.indicators,
-      debt: debts,
-      netWorth
-    };
+  const snap = {
+    id: 'snap_' + p.id + '_' + p.week,
+    participantId: p.id,
+    week: p.week,
+    balance: p.balance,
+    reserve: p.reserve,
+    investments: p.investments,
+    indicators: p.indicators,
+    debt: debts,
+    netWorth
+  };
+  await db.addHistorySnapshot(snap);
 
-    await db.addHistorySnapshot(snap);
+  // 2. Recebimento de Salário
+  let salaryApplied = p.salary;
+  const workLoss = p.activeEvents.find(e => e.id === 'unemployment');
+  if (workLoss) {
+    salaryApplied = Math.round(p.salary * 0.3);
+    p.notifications.unshift({ type: 'warning', text: 'Você recebeu apenas 30% do salário devido ao desemprego temporário.' });
+  }
+  p.balance += salaryApplied;
 
-    // 2. Recebimento de Salário
-    let salaryApplied = p.salary;
-    const workLoss = p.activeEvents.find(e => e.id === 'unemployment');
-    if (workLoss) {
-      salaryApplied = Math.round(p.salary * 0.3);
-      p.notifications.unshift({ type: 'warning', text: 'Você recebeu apenas 30% do salário devido ao desemprego temporário.' });
-    }
-    p.balance += salaryApplied;
-
-    // 3. Contas não pagas (Viram overdue com multas/juros)
-    p.unpaidBills.forEach(bill => {
-      const fine = Math.round(bill.value * (campaign.lateFee / 100));
-      const interest = Math.round(bill.value * (campaign.interestRate / 100));
-      
-      p.overdueBills.push({
-        id: bill.id, type: bill.type, name: bill.name + " (Atrasada)",
-        value: bill.value, originalValue: bill.value, dueWeek: bill.dueWeek,
-        fineApplied: fine, interestApplied: interest, totalValue: bill.value + fine + interest
-      });
-
-      p.indicators.happiness = Math.max(0, p.indicators.happiness - 8);
-    });
-
-    if (p.unpaidBills.length > 0) {
-      p.notifications.unshift({ type: 'warning', text: `Você deixou ${p.unpaidBills.length} contas vencerem.` });
-    }
-    p.unpaidBills = [];
-
-    // Juros acumulativos nas atrasadas
-    p.overdueBills.forEach(bill => {
-      const extraInterest = Math.round(bill.originalValue * (campaign.interestRate / 100));
-      bill.interestApplied += extraInterest;
-      bill.totalValue = bill.originalValue + bill.fineApplied + bill.interestApplied;
-      p.indicators.happiness = Math.max(0, p.indicators.happiness - 4);
-    });
-
-    // 4. Cobrança de Parcelas de Empréstimos
-    let totalPMTs = 0;
-    p.loans.forEach(loan => {
-      if (loan.paidTerms < loan.term) {
-        totalPMTs += loan.monthlyPayment;
-        loan.paidTerms += 1;
-      }
-    });
-
-    if (totalPMTs > 0) {
-      if (p.balance >= totalPMTs) {
-        p.balance -= totalPMTs;
-        p.notifications.unshift({ type: 'info', text: `Débito de R$ ${totalPMTs.toFixed(2)} das parcelas de empréstimos.` });
-      } else {
-        const unpaid = totalPMTs - p.balance;
-        p.balance = 0;
-        p.overdueBills.push({
-          id: 'loan_fail_' + p.week + '_' + Math.random().toString(36).substr(2, 3),
-          type: 'loan_repay', name: 'Parcela de Empréstimo Inadimplida',
-          value: unpaid, originalValue: unpaid, dueWeek: p.week,
-          fineApplied: Math.round(unpaid * 0.05), interestApplied: Math.round(unpaid * 0.03),
-          totalValue: Math.round(unpaid * 1.08)
-        });
-        p.indicators.happiness = Math.max(0, p.indicators.happiness - 15);
-        p.notifications.unshift({ type: 'danger', text: 'Você não tinha saldo para pagar o empréstimo! Encargos cobrados.' });
-      }
-    }
-
-    // 5. Rendimentos
-    let totalEarn = 0;
-    for (const prodId of Object.keys(p.investments)) {
-      const amt = p.investments[prodId] || 0;
-      if (amt > 0) {
-        const prod = DEFAULT_INVESTMENT_PRODUCTS.find(x => x.id === prodId);
-        let rate = prod.monthlyYield;
-        if (prod.isVariable) rate = -0.04 + Math.random() * 0.10;
-        const earn = Math.round(amt * rate);
-        p.investments[prodId] += earn;
-        totalEarn += earn;
-      }
-    }
-
-    if (totalEarn > 0) p.notifications.unshift({ type: 'success', text: `Rendimento de investimentos: R$ ${totalEarn.toFixed(2)}.` });
-    else if (totalEarn < 0) p.notifications.unshift({ type: 'warning', text: `Queda no Fundo de Ações de R$ ${Math.abs(totalEarn).toFixed(2)}.` });
-
-    // 6. Decaimento natural de Limpeza/Saúde
-    const sizeMult = p.family.baseExpensesMultiplier;
-    p.indicators.cleanliness = Math.max(0, p.indicators.cleanliness - Math.round(15 * sizeMult));
+  // 3. Contas não pagas (Viram overdue com multas/juros)
+  p.unpaidBills.forEach(bill => {
+    const fine = Math.round(bill.value * (campaign.lateFee / 100));
+    const interest = Math.round(bill.value * (campaign.interestRate / 100));
     
-    let healthDec = 5;
-    if (p.indicators.cleanliness < 40) {
-      healthDec += 15;
-      p.notifications.unshift({ type: 'warning', text: 'Saúde da família prejudicada devido à casa suja!' });
-    }
-    p.indicators.health = Math.max(0, p.indicators.health - healthDec);
+    p.overdueBills.push({
+      id: bill.id, type: bill.type, name: bill.name + " (Atrasada)",
+      value: bill.value, originalValue: bill.value, dueWeek: bill.dueWeek,
+      fineApplied: fine, interestApplied: interest, totalValue: bill.value + fine + interest
+    });
 
-    const finalDebts = p.overdueBills.reduce((s, b) => s + (b.totalValue || b.value), 0) +
-                       p.loans.reduce((s, l) => s + (l.totalAmount - (l.paidTerms * l.monthlyPayment)), 0);
-    if (finalDebts > p.salary * 1.5) {
+    p.indicators.happiness = Math.max(0, p.indicators.happiness - 8);
+  });
+
+  if (p.unpaidBills.length > 0) {
+    p.notifications.unshift({ type: 'warning', text: `Você deixou ${p.unpaidBills.length} contas vencerem.` });
+  }
+  p.unpaidBills = [];
+
+  // Juros acumulativos nas atrasadas
+  p.overdueBills.forEach(bill => {
+    const extraInterest = Math.round(bill.originalValue * (campaign.interestRate / 100));
+    bill.interestApplied += extraInterest;
+    bill.totalValue = bill.originalValue + bill.fineApplied + bill.interestApplied;
+    p.indicators.happiness = Math.max(0, p.indicators.happiness - 4);
+  });
+
+  // 4. Cobrança de Parcelas de Empréstimos
+  let totalPMTs = 0;
+  p.loans.forEach(loan => {
+    if (loan.paidTerms < loan.term) {
+      totalPMTs += loan.monthlyPayment;
+      loan.paidTerms += 1;
+    }
+  });
+
+  if (totalPMTs > 0) {
+    if (p.balance >= totalPMTs) {
+      p.balance -= totalPMTs;
+      p.notifications.unshift({ type: 'info', text: `Débito de R$ ${totalPMTs.toFixed(2)} das parcelas de empréstimos.` });
+    } else {
+      const unpaid = totalPMTs - p.balance;
+      p.balance = 0;
+      p.overdueBills.push({
+        id: 'loan_fail_' + p.week + '_' + Math.random().toString(36).substr(2, 3),
+        type: 'loan_repay', name: 'Parcela de Empréstimo Inadimplida',
+        value: unpaid, originalValue: unpaid, dueWeek: p.week,
+        fineApplied: Math.round(unpaid * 0.05), interestApplied: Math.round(unpaid * 0.03),
+        totalValue: Math.round(unpaid * 1.08)
+      });
       p.indicators.happiness = Math.max(0, p.indicators.happiness - 15);
-      p.notifications.unshift({ type: 'warning', text: 'Dívidas excessivas estão prejudicando a felicidade familiar.' });
+      p.notifications.unshift({ type: 'danger', text: 'Você não tinha saldo para pagar o empréstimo! Encargos cobrados.' });
     }
+  }
 
-    // 7. Doenças
-    p.activeIllnesses.forEach(ill => {
-      ill.recoveryWeeks -= 1;
-      p.indicators.health = Math.max(0, p.indicators.health + ill.healthImpact * 0.5);
-      p.indicators.happiness = Math.max(0, p.indicators.happiness + ill.happinessImpact * 0.5);
+  // 5. Rendimentos de Investimentos
+  let totalEarn = 0;
+  for (const prodId of Object.keys(p.investments)) {
+    const amt = p.investments[prodId] || 0;
+    if (amt > 0) {
+      const prod = DEFAULT_INVESTMENT_PRODUCTS.find(x => x.id === prodId);
+      let rate = prod.monthlyYield;
+      if (prod.isVariable) rate = -0.04 + Math.random() * 0.10;
+      const earn = Math.round(amt * rate);
+      p.investments[prodId] += earn;
+      totalEarn += earn;
+    }
+  }
+
+  if (totalEarn > 0) p.notifications.unshift({ type: 'success', text: `Rendimento de investimentos: R$ ${totalEarn.toFixed(2)}.` });
+  else if (totalEarn < 0) p.notifications.unshift({ type: 'warning', text: `Queda no Fundo de Ações de R$ ${Math.abs(totalEarn).toFixed(2)}.` });
+
+  // 6. Regra da Fome Crítica (Se não comprou comida, Saúde e Felicidade caem para 0%)
+  if (!p.boughtFoodThisMonth) {
+    p.indicators.health = 0;
+    p.indicators.happiness = 0;
+    p.notifications.unshift({ 
+      type: 'danger', 
+      text: '🚨 FOME CRÍTICA: Sua família passou o mês sem alimentos! Saúde e Felicidade caíram para 0%!' 
     });
+  }
+  p.boughtFoodThisMonth = false; // Reseta para o próximo mês
 
-    p.activeIllnesses = p.activeIllnesses.filter(ill => {
-      if (ill.recoveryWeeks <= 0) {
-        p.notifications.unshift({ type: 'success', text: `A doença '${ill.name}' terminou seu ciclo natural.` });
-        return false;
-      }
-      return true;
-    });
+  // 7. Decaimento natural de Limpeza/Saúde
+  const sizeMult = p.family.baseExpensesMultiplier;
+  p.indicators.cleanliness = Math.max(0, p.indicators.cleanliness - Math.round(15 * sizeMult));
+  
+  let healthDec = 5;
+  if (p.indicators.cleanliness < 40) {
+    healthDec += 15;
+    p.notifications.unshift({ type: 'warning', text: 'Saúde da família prejudicada devido à casa suja!' });
+  }
+  p.indicators.health = Math.max(0, p.indicators.health - healthDec);
 
-    if (p.indicators.cleanliness < 35 || p.indicators.health < 40) {
-      if (Math.random() < diff.diseaseProbability * 2.0) {
-        const dTemplate = DEFAULT_DISEASES[Math.floor(Math.random() * DEFAULT_DISEASES.length)];
-        if (!p.activeIllnesses.some(x => x.id === dTemplate.id)) {
-          p.activeIllnesses.push({ ...dTemplate });
-          p.indicators.health = Math.max(0, p.indicators.health + dTemplate.healthImpact);
-          p.indicators.happiness = Math.max(0, p.indicators.happiness + dTemplate.happinessImpact);
-          p.notifications.unshift({ type: 'danger', text: `Falta de higiene causou a doença: '${dTemplate.name}'. Vá à Farmácia!` });
-        }
+  const finalDebts = p.overdueBills.reduce((s, b) => s + (b.totalValue || b.value), 0) +
+                     p.loans.reduce((s, l) => s + (l.totalAmount - (l.paidTerms * l.monthlyPayment)), 0);
+  if (finalDebts > p.salary * 1.5) {
+    p.indicators.happiness = Math.max(0, p.indicators.happiness - 15);
+    p.notifications.unshift({ type: 'warning', text: 'Dívidas excessivas estão prejudicando a felicidade familiar.' });
+  }
+
+  // Penalidades de Quebras Ativas (Problemas Estruturais)
+  p.activeEvents.forEach(evt => {
+    if (evt.isBreakdown) {
+      p.indicators.cleanliness = Math.max(0, p.indicators.cleanliness - 15);
+      p.indicators.happiness = Math.max(0, p.indicators.happiness - 10);
+      p.notifications.unshift({ 
+        type: 'warning', 
+        text: `🔧 Manutenção Pendente: O problema '${evt.name}' está deteriorando o ambiente e o bem-estar!` 
+      });
+    }
+  });
+
+  // 8. Tratamento de Doenças
+  p.activeIllnesses.forEach(ill => {
+    ill.recoveryWeeks -= 1;
+    p.indicators.health = Math.max(0, p.indicators.health + ill.healthImpact * 0.5);
+    p.indicators.happiness = Math.max(0, p.indicators.happiness + ill.happinessImpact * 0.5);
+  });
+
+  p.activeIllnesses = p.activeIllnesses.filter(ill => {
+    if (ill.recoveryWeeks <= 0) {
+      p.notifications.unshift({ type: 'success', text: `A doença '${ill.name}' terminou seu ciclo natural.` });
+      return false;
+    }
+    return true;
+  });
+
+  if (p.indicators.cleanliness < 35 || p.indicators.health < 40) {
+    if (Math.random() < diff.diseaseProbability * 2.0) {
+      const dTemplate = DEFAULT_DISEASES[Math.floor(Math.random() * DEFAULT_DISEASES.length)];
+      if (!p.activeIllnesses.some(x => x.id === dTemplate.id)) {
+        p.activeIllnesses.push({ ...dTemplate });
+        p.indicators.health = Math.max(0, p.indicators.health + dTemplate.healthImpact);
+        p.indicators.happiness = Math.max(0, p.indicators.happiness + dTemplate.happinessImpact);
+        p.notifications.unshift({ type: 'danger', text: `Falta de higiene causou a doença: '${dTemplate.name}'. Vá à Farmácia!` });
       }
     }
+  }
 
-    // 8. Eventos Aleatórios
-    if (Math.random() < diff.eventProbability) {
-      const event = DEFAULT_EVENTS[Math.floor(Math.random() * DEFAULT_EVENTS.length)];
+  // 9. Eventos Aleatórios & Quebras Estruturais
+  if (Math.random() < diff.eventProbability) {
+    const event = DEFAULT_EVENTS[Math.floor(Math.random() * DEFAULT_EVENTS.length)];
+    
+    // Mapear eventos específicos para "quebras" que requerem manutenção ativa
+    const breakdownIds = ['pipe_leak', 'fridge_repair'];
+    const isBreakdown = breakdownIds.includes(event.id);
+
+    if (isBreakdown) {
+      p.activeEvents.push({
+        id: event.id,
+        name: event.name,
+        description: event.description,
+        impact: 0, // Custo cobrado apenas se consertar
+        tip: event.educationalTip,
+        weekTriggered: p.week,
+        isBreakdown: true,
+        repairCost: Math.abs(event.financialImpact)
+      });
+      p.notifications.unshift({ 
+        type: 'danger', 
+        text: `🚨 QUEBRA: ${event.name}! Chame manutenção na aba 'Consertos da Casa' (Reparo: R$ ${Math.abs(event.financialImpact)}).` 
+      });
+    } else {
       p.balance += event.financialImpact;
       p.indicators.health = Math.max(0, Math.min(100, p.indicators.health + event.healthImpact));
       p.indicators.happiness = Math.max(0, Math.min(100, p.indicators.happiness + event.happinessImpact));
@@ -861,74 +975,76 @@ app.post('/api/participant/:id/advance-week', authenticateToken, async (req, res
       });
       p.notifications.unshift({ type: event.category === 'positive' ? 'success' : 'danger', text: `EVENTO: ${event.name}! ${event.description}` });
     }
-    p.activeEvents = p.activeEvents.filter(e => e.weekTriggered === p.week);
-
-    // 9. Atualizar indicador financeiro
-    const finalAssets = p.balance + p.reserve + Object.values(p.investments).reduce((sum, v) => sum + v, 0);
-    let finScore = 50;
-    if (finalDebts === 0) {
-      finScore = finalAssets > p.salary ? 95 : 75;
-    } else {
-      const ratio = finalAssets / (finalDebts + 1);
-      if (ratio >= 2) finScore = 90;
-      else if (ratio >= 1) finScore = 70;
-      else if (ratio >= 0.5) finScore = 50;
-      else if (ratio >= 0.2) finScore = 30;
-      else finScore = 15;
-    }
-    p.indicators.financial = finScore;
-
-    // 10. Objetivos da Campanha
-    campaign.goals.forEach(goal => {
-      let status = p.goalsStatus[goal.id] || "in_progress";
-      if (status === "in_progress") {
-        if (goal.targetType === "reserve" && p.reserve >= goal.targetValue) status = "completed";
-        if (goal.targetType === "no_loans" && p.loans.length > 0) status = "failed";
-        if (goal.targetType === "investments") {
-          const totalInvested = Object.values(p.investments).reduce((s, v) => s + v, 0);
-          if (totalInvested >= goal.targetValue) status = "completed";
-        }
-        
-        // Fim da simulação
-        if (p.week >= campaign.durationWeeks) {
-          if (goal.targetType === "health") status = p.indicators.health >= goal.targetValue ? "completed" : "failed";
-          if (goal.targetType === "happiness") status = p.indicators.happiness >= goal.targetValue ? "completed" : "failed";
-          if (goal.targetType === "no_loans") status = p.loans.length === 0 ? "completed" : "failed";
-        }
-
-        if (status !== "in_progress") {
-          p.goalsStatus[goal.id] = status;
-          p.notifications.unshift({
-            type: status === 'completed' ? 'success' : 'danger',
-            text: `Objetivo '${goal.name}' ${status === 'completed' ? 'Concluído! (+' + goal.points + ' pts)' : 'Falhou!'}`
-          });
-        }
-      }
-    });
-
-    // 11. Incrementar tempo
-    p.week += 1;
-    p.energy = 100;
-    p.tasksCompletedThisWeek = [];
-    p.extraIncomeCompletedThisWeek = [];
-
-    // Gerar novas faturas se não acabou
-    if (p.week > campaign.durationWeeks) {
-      p.finished = 1;
-      p.notifications.unshift({ type: 'success', text: 'Parabéns! Você concluiu a simulação "Missão Família"!' });
-    } else {
-      // Contas do novo período
-      activeCampaignBillsSeed(p, campaign, sizeMult, diff.costMultiplier);
-    }
-
-    await db.saveParticipant(p);
-    res.json({ success: true, message: `Virada de mês efetuada! Iniciando Mês ${p.week}.` });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Erro no fechamento do mês.' });
   }
-});
+
+  // Limpar eventos normais antigos, manter breakdowns não consertados
+  p.activeEvents = p.activeEvents.filter(e => e.weekTriggered === p.week || e.isBreakdown);
+
+  // 10. Atualizar indicador financeiro
+  const finalAssets = p.balance + p.reserve + Object.values(p.investments).reduce((sum, v) => sum + v, 0);
+  let finScore = 50;
+  if (debts === 0) {
+    finScore = finalAssets > p.salary ? 95 : 75;
+  } else {
+    const ratio = finalAssets / (debts + 1);
+    if (ratio >= 2) finScore = 90;
+    else if (ratio >= 1) finScore = 70;
+    else if (ratio >= 0.5) finScore = 50;
+    else if (ratio >= 0.2) finScore = 30;
+    else finScore = 15;
+  }
+  p.indicators.financial = finScore;
+
+  // 11. Objetivos da Campanha
+  campaign.goals.forEach(goal => {
+    let status = p.goalsStatus[goal.id] || "in_progress";
+    if (status === "in_progress") {
+      if (goal.targetType === "reserve" && p.reserve >= goal.targetValue) status = "completed";
+      if (goal.targetType === "no_loans" && p.loans.length > 0) status = "failed";
+      if (goal.targetType === "investments") {
+        const totalInvested = Object.values(p.investments).reduce((s, v) => s + v, 0);
+        if (totalInvested >= goal.targetValue) status = "completed";
+      }
+      if (p.week >= campaign.durationWeeks) {
+        if (goal.targetType === "health") status = p.indicators.health >= goal.targetValue ? "completed" : "failed";
+        if (goal.targetType === "happiness") status = p.indicators.happiness >= goal.targetValue ? "completed" : "failed";
+        if (goal.targetType === "no_loans") status = p.loans.length === 0 ? "completed" : "failed";
+      }
+
+      if (status !== "in_progress") {
+        p.goalsStatus[goal.id] = status;
+        p.notifications.unshift({
+          type: status === 'completed' ? 'success' : 'danger',
+          text: `Objetivo '${goal.name}' ${status === 'completed' ? 'Concluído! (+' + goal.points + ' pts)' : 'Falhou!'}`
+        });
+      }
+    }
+  });
+
+  // 12. Incrementar tempo
+  p.week += 1;
+  p.energy = 100;
+  p.tasksCompletedThisWeek = [];
+  p.extraIncomeCompletedThisWeek = [];
+
+  if (p.week > campaign.durationWeeks) {
+    p.finished = 1;
+    p.notifications.unshift({ type: 'success', text: 'Parabéns! Você concluiu a simulação "Missão Família"!' });
+  } else {
+    activeCampaignBillsSeed(p, campaign, sizeMult, diff.costMultiplier);
+  }
+
+  await db.saveParticipant(p);
+
+  // Registro de Auditoria
+  await db.addAuditLog({
+    id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 3),
+    timestamp: new Date().toISOString(),
+    username: adminName,
+    action: 'Mês Avançado',
+    details: `Fechamento de contas do Mês ${p.week - 1} rodado para ${p.name}.`
+  });
+}
 
 function activeCampaignBillsSeed(p, campaign, sizeMult, costMult) {
   campaign.accountsConfig.forEach(cfg => {
@@ -942,13 +1058,10 @@ function activeCampaignBillsSeed(p, campaign, sizeMult, costMult) {
   });
 
   const categories = [
-    { id: 'alimentacao', name: 'Supermercado (Alimentação)', perc: campaign.expensesPercentages.alimentacao },
-    { id: 'moradia', name: 'Despesas de Moradia/Manutenção', perc: campaign.expensesPercentages.moradia },
     { id: 'transporte', name: 'Combustível/Transporte Público', perc: campaign.expensesPercentages.transporte },
     { id: 'saude', name: 'Plano de Saúde / Higiene Familiar', perc: campaign.expensesPercentages.saude },
     { id: 'higiene', name: 'Produtos de Limpeza e Higiene', perc: campaign.expensesPercentages.higiene },
-    { id: 'educacao', name: 'Mensalidades / Material Escolar', perc: campaign.expensesPercentages.educacao },
-    { id: 'lazer', name: 'Lazer e Entretenimento', perc: campaign.expensesPercentages.lazer }
+    { id: 'educacao', name: 'Mensalidades / Material Escolar', perc: campaign.expensesPercentages.educacao }
   ];
   categories.forEach(cat => {
     if (cat.perc > 0) {
@@ -961,7 +1074,48 @@ function activeCampaignBillsSeed(p, campaign, sizeMult, costMult) {
   });
 }
 
-// --- ROTAS DO ADMINISTRADOR ---
+// --- ROTAS DO ADMINISTRADOR (AVANÇO DE CICLOS) ---
+
+// Avançar mês de participante específico
+app.post('/api/admin/advance-cycle', authenticateToken, requireAdmin, async (req, res) => {
+  const { participantId } = req.body;
+  if (!participantId) return res.status(400).json({ message: 'ID do participante não fornecido.' });
+
+  try {
+    const p = await db.getParticipantById(participantId);
+    if (!p) return res.status(404).json({ message: 'Participante não encontrado.' });
+    if (p.finished === 1) return res.status(400).json({ message: 'A simulação deste participante já foi finalizada.' });
+
+    await advanceParticipantWeekLogic(participantId, req.user.name);
+    res.json({ success: true, message: `Ciclo do participante ${p.name} avançado para o Mês ${p.week + 1}!` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: err.message || 'Erro ao avançar ciclo.' });
+  }
+});
+
+// Avançar mês de todos os participantes ativos
+app.post('/api/admin/advance-all-cycles', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const list = await db.getParticipants();
+    const activeOnes = list.filter(p => p.finished === 0);
+
+    if (activeOnes.length === 0) {
+      return res.status(400).json({ message: 'Não há participantes ativos na simulação para avançar.' });
+    }
+
+    let count = 0;
+    for (const p of activeOnes) {
+      await advanceParticipantWeekLogic(p.id, req.user.name);
+      count++;
+    }
+
+    res.json({ success: true, message: `Ciclo avançado com sucesso para todas as ${count} famílias ativas!` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro ao avançar ciclo de todas as famílias.' });
+  }
+});
 
 // Aprovar Empréstimo
 app.post('/api/admin/approve-loan', authenticateToken, requireAdmin, async (req, res) => {

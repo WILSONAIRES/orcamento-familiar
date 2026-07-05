@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS participants (
     extraIncomeCompletedThisWeek JSONB NOT NULL,
     customExtraIncomePending JSONB NOT NULL,
     goalsStatus JSONB NOT NULL,
-    notifications JSONB NOT NULL
+    notifications JSONB NOT NULL,
+    boughtFoodThisMonth BOOLEAN DEFAULT FALSE
 );
 
 -- 4. Tabela de Histórico (Snapshots Mensais)

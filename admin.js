@@ -6,6 +6,14 @@
 import { engine } from './state.js';
 
 export function initAdminView() {
+  // Exibir nome do diretor logado na barra lateral
+  if (engine.currentUser) {
+    const adminNameEl = document.getElementById('admin-display-name');
+    if (adminNameEl) {
+      adminNameEl.textContent = engine.currentUser.name;
+    }
+  }
+
   // --- NAVEGAÇÃO DE ABAS DO ADMIN ---
   const tabBtns = document.querySelectorAll('.admin-nav-btn');
   const tabContents = document.querySelectorAll('.admin-tab-content');
@@ -86,13 +94,31 @@ export function initAdminView() {
         alert(`Ficha cadastrada! O desbravador poderá logar no simulador.`);
         formRegister.reset();
         await refreshAdminTab('admin-participants');
-        
-        // Atualiza seletores de participantes
-        if (window.updateParticipantSelectors) {
-          await window.updateParticipantSelectors();
-        }
       } else {
         alert('Erro ao cadastrar participante.');
+      }
+    });
+  }
+
+  // --- BOTÃO DE AVANÇO GLOBAL DE CICLO (TODOS OS PARTICIPANTES) ---
+  const btnAdvanceAll = document.getElementById('btn-advance-all-cycles');
+  if (btnAdvanceAll) {
+    btnAdvanceAll.addEventListener('click', async () => {
+      if (confirm("ATENÇÃO: Deseja fechar as contas mensais e avançar o ciclo de TODAS as famílias ativas ao mesmo tempo? Isso recalcula saldo, rendimentos, saúde e faturas vencidas.")) {
+        btnAdvanceAll.disabled = true;
+        btnAdvanceAll.textContent = "⌛ Processando...";
+        
+        const res = await engine.advanceAllCyclesAdmin();
+        alert(res.message);
+        
+        btnAdvanceAll.disabled = false;
+        btnAdvanceAll.textContent = "📆 Avançar Ciclo de Todos";
+
+        // Recarregar aba ativa para atualizar ranking
+        const activeTabBtn = document.querySelector('.admin-nav-btn.active');
+        if (activeTabBtn) {
+          await refreshAdminTab(activeTabBtn.getAttribute('data-tab'));
+        }
       }
     });
   }
@@ -220,14 +246,6 @@ async function renderCampaignSettings() {
   document.getElementById('cfg-camp-difficulty').value = campaign.difficulty;
   document.getElementById('cfg-camp-duration').value = campaign.durationWeeks;
   document.getElementById('cfg-camp-salary').value = campaign.fixedSalary;
-
-  const exp = campaign.expensesPercentages;
-  document.getElementById('cfg-perc-food').value = exp.alimentacao;
-  document.getElementById('cfg-perc-housing').value = exp.moradia;
-  document.getElementById('cfg-perc-transport').value = exp.transporte;
-  document.getElementById('cfg-perc-health').value = exp.saude;
-  document.getElementById('cfg-perc-education').value = exp.educacao;
-  document.getElementById('cfg-perc-leisure').value = exp.lazer;
 
   document.getElementById('cfg-fee-late').value = campaign.lateFee;
   document.getElementById('cfg-interest-monthly').value = campaign.interestRate;
@@ -390,7 +408,7 @@ function setupApprovalsClickHandlers() {
   });
 }
 
-// 4. Renderizar Lista de Participantes
+// 4. Renderizar Lista de Participantes (Com Avanço Individual)
 async function renderParticipantsList() {
   const participants = await engine.getParticipants();
   const tableBody = document.querySelector('#table-participants-list tbody');
@@ -403,6 +421,12 @@ async function renderParticipantsList() {
 
   participants.forEach(p => {
     const row = document.createElement('tr');
+    
+    let btnAdvanceHtml = `<button class="btn-primary btn-small btn-advance-cycle-ind" data-id="${p.id}" style="margin-right: 5px;">➡️ Avançar Mês</button>`;
+    if (p.finished === 1) {
+      btnAdvanceHtml = `<span class="badge-success" style="margin-right:5px;">Simul. Concluída</span>`;
+    }
+
     row.innerHTML = `
       <td><strong>${p.name}</strong></td>
       <td>${p.clube} / ${p.unidade}</td>
@@ -410,23 +434,32 @@ async function renderParticipantsList() {
       <td><span class="badge-info">${p.family.name}</span></td>
       <td>Mês ${p.week}</td>
       <td>
-        <button class="btn-primary btn-small btn-simulate-player" data-id="${p.id}">🎮 Simular Família</button>
+        ${btnAdvanceHtml}
+        <button class="btn-secondary btn-small btn-simulate-player" data-id="${p.id}">🎮 Simular</button>
       </td>
     `;
     tableBody.appendChild(row);
   });
 
-  document.querySelectorAll('.btn-simulate-player').forEach(btn => {
+  // Escutar avanço de ciclo individual
+  document.querySelectorAll('.btn-advance-cycle-ind').forEach(btn => {
     btn.addEventListener('click', async () => {
       const pId = btn.getAttribute('data-id');
-      
-      const profileSel = document.getElementById('profile-selector');
-      profileSel.value = 'participant';
-      profileSel.dispatchEvent(new Event('change'));
-      
-      const partSel = document.getElementById('participant-selector');
-      partSel.value = pId;
-      partSel.dispatchEvent(new Event('change'));
+      const name = btn.closest('tr').querySelector('td strong').textContent;
+      if (confirm(`Deseja fechar as contas mensais e avançar o ciclo de ${name} para o próximo período?`)) {
+        const res = await engine.advanceCycleAdmin(pId);
+        alert(res.message);
+        await renderParticipantsList();
+      }
+    });
+  });
+
+  // Simular jogador abrindo index.html em outra aba com seu ID
+  document.querySelectorAll('.btn-simulate-player').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pId = btn.getAttribute('data-id');
+      localStorage.setItem('mf_active_part_id', pId);
+      window.open('index.html', '_blank');
     });
   });
 }
