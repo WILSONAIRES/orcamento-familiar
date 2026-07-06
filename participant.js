@@ -256,6 +256,11 @@ export async function refreshParticipantView() {
     document.getElementById('player-reserve-val').textContent = `R$ ${p.reserve.toFixed(2)}`;
     document.getElementById('player-salary-val').textContent = `R$ ${p.salary.toFixed(2)}`;
     document.getElementById('val-player-energy').textContent = `${p.energy}%`;
+    
+    const cleaningStockEl = document.getElementById('player-cleaning-stock-val');
+    if (cleaningStockEl) {
+      cleaningStockEl.textContent = `${p.cleaningProductsStock || 0} cargas`;
+    }
 
     // Badges da Home
     const unpaidCount = p.unpaidBills.length;
@@ -496,8 +501,14 @@ async function renderModalContent(modalId) {
 
       DEFAULT_EXTRA_INCOME_ACTIVITIES.forEach(act => {
         const reward = Math.round(act.baseReward * diff.incomeMultiplier);
+        const costToExec = Math.round((act.executionCost || 0) * diff.costMultiplier);
+        const successChance = Math.round((act.successProbability || 0.8) * 100);
+        
+        const isCompleted = p.extraIncomeCompletedThisWeek && p.extraIncomeCompletedThisWeek.includes(act.id);
+
         const card = document.createElement('div');
         card.className = 'income-item-card';
+        if (isCompleted) card.style.opacity = '0.6';
         
         let impactsText = [];
         if (act.healthImpact) impactsText.push(`Saúde (${act.healthImpact >= 0 ? '+' : ''}${act.healthImpact}%)`);
@@ -506,14 +517,18 @@ async function renderModalContent(modalId) {
 
         card.innerHTML = `
           <div class="income-card-meta">
-            <h4>${act.name}</h4>
+            <h4>${act.name} ${isCompleted ? '✅' : ''}</h4>
             <p>${act.description}</p>
-            <p style="font-size:0.75rem;">Tempo necessário: <strong>${act.daysRequired} dia(s)</strong> | Consumo de Energia: <strong>${act.daysRequired * 15}%</strong></p>
+            <p style="font-size:0.75rem; margin-top: 5px;">Tempo necessário: <strong>${act.daysRequired} dia(s)</strong> | Consumo de Energia: <strong>${act.daysRequired * 15}%</strong></p>
+            <p style="font-size:0.75rem; color:#c084fc;">💸 Custo de Execução: <strong>R$ ${costToExec}</strong> | 🎲 Sucesso: <strong>${successChance}%</strong></p>
             <span class="impacts ${act.happinessImpact >= 0 ? 'green-text' : 'red-text'}">${impactsText.join(', ')}</span>
           </div>
           <div class="income-card-action">
-            <span class="reward">R$ ${reward}</span>
-            <button class="btn-primary btn-small btn-do-income" data-id="${act.id}">Realizar Trabalho</button>
+            <span class="reward" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 2px;">Est. Retorno:</span>
+            <span class="reward" style="margin-top:0;">R$ ${reward}</span>
+            <button class="btn-primary btn-small btn-do-income" data-id="${act.id}" ${isCompleted ? 'disabled style="background:rgba(255,255,255,0.05); color:var(--text-muted); border:1px solid transparent;"' : ''}>
+              ${isCompleted ? 'Já Realizado' : 'Realizar Trabalho'}
+            </button>
           </div>
         `;
         container.appendChild(card);
@@ -661,17 +676,19 @@ async function renderModalContent(modalId) {
       const container = document.getElementById('chores-container');
       container.innerHTML = '';
       
-      const diff = INITIAL_DIFFICULTIES[campaign.difficulty];
+      const valCleaningStock = document.getElementById('val-cleaning-products-stock');
+      if (valCleaningStock) {
+        valCleaningStock.textContent = `${p.cleaningProductsStock || 0} cargas`;
+      }
 
       DEFAULT_TASKS.forEach(task => {
-        const finalCost = Math.round(task.cost * diff.costMultiplier);
         const card = document.createElement('div');
         card.className = 'chore-item-card';
 
         let impactsHtml = [];
         if (task.cleanlinessImpact) impactsHtml.push(`<span class="blue-text">🧹 Limpeza: +${task.cleanlinessImpact}%</span>`);
         if (task.healthImpact) impactsHtml.push(`<span class="red-text">❤️ Saúde: +${task.healthImpact}%</span>`);
-        if (task.happinessImpact) impactsHtml.push(`<span class="warning-text" style="color:var(--warning);">😊 Felicidade: +${task.happinessImpact}%</span>`);
+        impactsHtml.push(`<span class="red-text" style="color:var(--danger);">😊 Felicidade: -3% (Trabalho)</span>`);
 
         card.innerHTML = `
           <div class="chore-meta">
@@ -680,10 +697,11 @@ async function renderModalContent(modalId) {
             <div class="chore-impacts-list" style="margin-top: 10px;">
               ${impactsHtml.join('')}
               <span style="display:block; color:var(--text-muted); font-size:0.75rem;">Energia necessária: <strong>${task.energyCost}%</strong></span>
+              <span style="display:block; color:var(--text-muted); font-size:0.75rem;">Material de limpeza: <strong>1 carga</strong></span>
             </div>
           </div>
           <div class="price-action" style="margin-top: 15px;">
-            <span class="price" style="font-size:1.1rem;">Custo: R$ ${finalCost}</span>
+            <span class="price" style="font-size:1.1rem; color:var(--success);">Custo: Grátis</span>
             <button class="btn-primary btn-small btn-full btn-do-chore" data-id="${task.id}">Realizar Tarefa</button>
           </div>
         `;

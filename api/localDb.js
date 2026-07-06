@@ -87,17 +87,17 @@ class LocalDbAdapter {
       ],
       participants: [
         {
-          id: 'part_wilson', userId: 'user_wilson', campaignId: 'camp_2026', week: 1, finished: 0, balance: 800, reserve: 200, salary: 2500,
+          id: 'part_wilson', userId: 'user_wilson', campaignId: 'camp_2026', week: 1, finished: 0, balance: 3300, reserve: 200, salary: 2500,
           family: PRECONFIGURED_FAMILIES.find(f => f.id === 'padrao'), loans: [], pendingLoans: [],
           investments: { poupanca: 100, cdb: 0, tesouro_direto: 0, fundo_acoes: 0 },
           indicators: { health: 80, happiness: 85, cleanliness: 75, financial: 65 }, energy: 100,
           activeIllnesses: [], activeEvents: [], unpaidBills: [], overdueBills: [],
           tasksCompletedThisWeek: [], extraIncomeCompletedThisWeek: [], customExtraIncomePending: [], goalsStatus: {},
-          boughtFoodThisMonth: false,
-          notifications: [{ type: 'info', text: 'Bem-vindo ao simulador Missão Família! Seu primeiro salário foi creditado.' }]
+          boughtFoodThisMonth: false, cleaningProductsStock: 5,
+          notifications: [{ type: 'info', text: 'Bem-vindo ao simulador Missão Família! Seu saldo inicial inclui o salário cheio.' }]
         },
         {
-          id: 'part_lucas', userId: 'user_lucas', campaignId: 'camp_2026', week: 1, finished: 0, balance: 600, reserve: 50, salary: 2400,
+          id: 'part_lucas', userId: 'user_lucas', campaignId: 'camp_2026', week: 1, finished: 0, balance: 3000, reserve: 50, salary: 2400,
           family: PRECONFIGURED_FAMILIES.find(f => f.id === 'padrao'),
           loans: [{ id: 'loan_init', amount: 800, rate: 4, term: 6, paidTerms: 1, totalAmount: 992, monthlyPayment: 165.33, justification: "Móveis iniciais" }],
           pendingLoans: [], investments: { poupanca: 0, cdb: 0, tesouro_direto: 0, fundo_acoes: 0 },
@@ -105,17 +105,17 @@ class LocalDbAdapter {
           activeIllnesses: [], activeEvents: [], unpaidBills: [],
           overdueBills: [{ id: 'bill_luz_old', name: 'Conta de Luz Atrasada', value: 180, originalValue: 180, dueWeek: 0, fineApplied: 3.6, interestApplied: 1.8, totalValue: 185.4 }],
           tasksCompletedThisWeek: [], extraIncomeCompletedThisWeek: [], customExtraIncomePending: [], goalsStatus: {},
-          boughtFoodThisMonth: false,
+          boughtFoodThisMonth: false, cleaningProductsStock: 5,
           notifications: [{ type: 'warning', text: 'Cuidado! Você começou com uma conta de luz atrasada e um empréstimo.' }]
         },
         {
-          id: 'part_melissa', userId: 'user_melissa', campaignId: 'camp_2026', week: 1, finished: 0, balance: 1100, reserve: 400, salary: 2600,
+          id: 'part_melissa', userId: 'user_melissa', campaignId: 'camp_2026', week: 1, finished: 0, balance: 3900, reserve: 400, salary: 2800,
           family: PRECONFIGURED_FAMILIES.find(f => f.id === 'pequena'), loans: [], pendingLoans: [],
           investments: { poupanca: 300, cdb: 200, tesouro_direto: 0, fundo_acoes: 0 },
           indicators: { health: 90, happiness: 90, cleanliness: 90, financial: 80 }, energy: 100,
           activeIllnesses: [], activeEvents: [], unpaidBills: [], overdueBills: [],
           tasksCompletedThisWeek: [], extraIncomeCompletedThisWeek: [], customExtraIncomePending: [], goalsStatus: {},
-          boughtFoodThisMonth: false,
+          boughtFoodThisMonth: false, cleaningProductsStock: 5,
           notifications: [{ type: 'success', text: 'Excelente início! Suas economias e investimentos estão saudáveis.' }]
         }
       ],

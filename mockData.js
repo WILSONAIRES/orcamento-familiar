@@ -36,9 +36,11 @@ export const DEFAULT_EXTRA_INCOME_ACTIVITIES = [
     name: "Venda de Doces Caseiros",
     description: "Fazer brigadeiros e trufas para vender na escola, igreja ou vizinhança.",
     baseReward: 180,
-    daysRequired: 2, // Consome tempo/energia do participante
-    happinessImpact: 5, // Fazer doces e interagir com clientes traz felicidade
-    cleanlinessImpact: -5 // Suja um pouco a cozinha
+    daysRequired: 2,
+    happinessImpact: 5,
+    cleanlinessImpact: -5,
+    executionCost: 40,
+    successProbability: 0.85
   },
   {
     id: "car_wash",
@@ -46,9 +48,11 @@ export const DEFAULT_EXTRA_INCOME_ACTIVITIES = [
     description: "Oferecer serviço de lavagem ecológica de carros para os vizinhos no fim de semana.",
     baseReward: 150,
     daysRequired: 1,
-    happinessImpact: -2, // Dá trabalho físico
-    healthImpact: -3,    // Cansaço físico
-    cleanlinessImpact: 0
+    happinessImpact: -2,
+    healthImpact: -3,
+    cleanlinessImpact: 0,
+    executionCost: 25,
+    successProbability: 0.75
   },
   {
     id: "dog_walker",
@@ -56,9 +60,11 @@ export const DEFAULT_EXTRA_INCOME_ACTIVITIES = [
     description: "Passear com cães da vizinhança durante a semana.",
     baseReward: 120,
     daysRequired: 2,
-    happinessImpact: 8,  // Brincar com cães aumenta felicidade
-    healthImpact: 5,     // Exercício físico faz bem à saúde
-    cleanlinessImpact: 0
+    happinessImpact: 8,
+    healthImpact: 5,
+    cleanlinessImpact: 0,
+    executionCost: 10,
+    successProbability: 0.90
   },
   {
     id: "handicraft",
@@ -67,7 +73,9 @@ export const DEFAULT_EXTRA_INCOME_ACTIVITIES = [
     baseReward: 200,
     daysRequired: 3,
     happinessImpact: 6,
-    cleanlinessImpact: -3
+    cleanlinessImpact: -3,
+    executionCost: 50,
+    successProbability: 0.80
   }
 ];
 

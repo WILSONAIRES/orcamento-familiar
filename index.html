@@ -80,7 +80,7 @@
           </div>
           <div class="form-group">
             <label for="reg-age">Idade:</label>
-            <input type="number" id="reg-age" class="input-modern" min="9" max="18" placeholder="Ex: 14">
+            <input type="number" id="reg-age" class="input-modern" placeholder="Ex: 14">
           </div>
         </div>
         
@@ -190,6 +190,10 @@
           <div class="fund-item">
             <span>Salário Mensal:</span>
             <strong id="player-salary-val">R$ 0,00</strong>
+          </div>
+          <div class="fund-item">
+            <span>Produtos de Limpeza:</span>
+            <strong id="player-cleaning-stock-val" style="color: #c084fc;">0 cargas</strong>
           </div>
         </div>
 
@@ -466,6 +470,18 @@
             </div>
           </div>
 
+          <div class="product-item glass-panel" style="display: flex; justify-content: space-between; align-items: center; padding: 1.2rem; border-left: 4px solid #a855f7;">
+            <div>
+              <h3>🧼 Kit de Produtos de Limpeza</h3>
+              <p style="font-size:0.8rem; color:var(--text-muted);">Detergentes, desinfetantes e sabão. Necessários para realizar as tarefas domésticas.</p>
+              <span class="purple-text" style="font-size:0.75rem; font-weight:600; color: #c084fc;">📦 Efeitos: +5 Cargas de material de limpeza</span>
+            </div>
+            <div style="text-align: right;">
+              <span class="price" id="val-price-cleaning-products" style="display:block; font-weight:700; margin-bottom: 5px;">R$ 50,00</span>
+              <button class="btn-primary btn-small btn-buy-food" data-option="cleaning_products">Comprar</button>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -662,7 +678,11 @@
         <button class="btn-close-modal">✕</button>
       </div>
       <div class="modal-body scrollable">
-        <p class="intro-p">Realizar tarefas físicas consome energia física mas aumenta a higiene doméstica e a saúde dos familiares sem custo de contratação.</p>
+        <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color);">
+          <span style="font-weight: 500;">🛒 Saldo de Produtos de Limpeza:</span>
+          <strong id="val-cleaning-products-stock" style="font-size: 1.1rem; color: #c084fc;">0 cargas</strong>
+        </div>
+        <p class="intro-p">Realizar tarefas físicas consome energia física e 1 carga de produtos de limpeza, mas aumenta a higiene doméstica e a saúde dos familiares sem custo financeiro.</p>
         <div id="chores-container" class="chores-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem;">
           <!-- Populado via JS -->
         </div>
@@ -748,7 +768,7 @@
           </div>
           <div class="form-group" style="margin-bottom: 1.2rem;">
             <label for="onb-age" style="font-size:0.8rem;">Sua Idade:</label>
-            <input type="number" id="onb-age" class="input-modern" min="9" max="18" placeholder="ex: 14" required>
+            <input type="number" id="onb-age" class="input-modern" placeholder="ex: 14" required>
           </div>
           <button type="submit" class="btn-primary btn-full">Criar Minha Família</button>
         </form>

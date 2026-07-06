@@ -157,7 +157,12 @@ app.post('/api/auth/complete-profile', authenticateToken, async (req, res) => {
     return res.status(400).json({ message: 'Perfil já configurado.' });
   }
   const { name, clube, unidade, age } = req.body;
-  const role = 'participant'; // Padrão jogador para desbravadores via Google
+  
+  // Forçar admin se for waisilva@gmail.com
+  let role = 'participant';
+  if (req.user.email.toLowerCase() === 'waisilva@gmail.com') {
+    role = 'admin';
+  }
 
   try {
     const existingUser = await db.getUser(req.user.email);
@@ -171,14 +176,26 @@ app.post('/api/auth/complete-profile', authenticateToken, async (req, res) => {
       password_hash: null,
       role,
       name,
-      clube: clube || null,
-      unidade: unidade || null,
-      age: age ? parseInt(age) : null
+      clube: role === 'admin' ? null : (clube || null),
+      unidade: role === 'admin' ? null : (unidade || null),
+      age: role === 'admin' ? null : (age ? parseInt(age) : null)
     };
 
     await db.createUser(newUser);
 
-    // Gerar faturas e casa virtual inicial
+    // Se for admin, finaliza aqui (não cria participante/casa virtual)
+    if (role === 'admin') {
+      await db.addAuditLog({
+        id: 'log_' + Date.now(),
+        timestamp: new Date().toISOString(),
+        username: name,
+        action: 'Novo Diretor Cadastrado (Google)',
+        details: `Administrador ${name} criado via Google OAuth.`
+      });
+      return res.json({ success: true, message: 'Perfil de Administrador criado com sucesso!', role: 'admin' });
+    }
+
+    // Gerar faturas e casa virtual inicial para participantes
     const activeCampaign = await db.getActiveCampaign();
     if (!activeCampaign) {
       return res.status(500).json({ message: 'Campanha ativa não configurada.' });
@@ -192,7 +209,8 @@ app.post('/api/auth/complete-profile', authenticateToken, async (req, res) => {
       : Math.floor(activeCampaign.minSalary + Math.random() * (activeCampaign.maxSalary - activeCampaign.minSalary));
 
     const finalSalary = Math.round(baseSalary * diff.incomeMultiplier);
-    const finalBalance = Math.round(diff.startingBalance * diff.incomeMultiplier);
+    // Saldo inicial + Salário cheio disponível no início da simulação
+    const finalBalance = Math.round(diff.startingBalance * diff.incomeMultiplier) + finalSalary;
 
     const participantId = 'part_' + Date.now();
     const bills = [];
@@ -237,7 +255,8 @@ app.post('/api/auth/complete-profile', authenticateToken, async (req, res) => {
       unpaidBills: bills, overdueBills: [],
       tasksCompletedThisWeek: [], extraIncomeCompletedThisWeek: [], customExtraIncomePending: [],
       goalsStatus: {}, boughtFoodThisMonth: false,
-      notifications: [{ type: 'info', text: 'Você ativou sua conta com o Google! Compre alimentos para iniciar.' }]
+      cleaningProductsStock: 5, // Inicia com 5 cargas de produtos de limpeza
+      notifications: [{ type: 'info', text: 'Você ativou sua conta com o Google! Seu saldo inicial conta com o salário cheio do mês.' }]
     };
 
     await db.createParticipant(newParticipant);
@@ -258,7 +277,7 @@ app.post('/api/auth/complete-profile', authenticateToken, async (req, res) => {
       details: `Participante ${name} (Unidade: ${unidade}) criado via Google.`
     });
 
-    res.json({ success: true, message: 'Perfil criado!', participantId });
+    res.json({ success: true, message: 'Perfil criado!', participantId, role: 'participant' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Erro ao finalizar o cadastro de perfil.' });
@@ -274,8 +293,11 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   try {
-    // Validação de Admin
-    if (role === 'admin') {
+    // Validação de Admin (Ignorada para o e-mail waisilva@gmail.com)
+    let finalRole = role;
+    if (username.toLowerCase() === 'waisilva@gmail.com') {
+      finalRole = 'admin';
+    } else if (role === 'admin') {
       if (adminCode !== ADMIN_SECURITY_CODE) {
         return res.status(400).json({ message: 'Código de acesso do clube inválido para criação de Administrador.' });
       }
@@ -292,20 +314,32 @@ app.post('/api/auth/register', async (req, res) => {
 
     const newUser = {
       id: userId,
-      username: username.toLowerCase(),
+      email: username.toLowerCase(),
       password_hash: passwordHash,
-      role,
+      role: finalRole,
       name,
-      clube: clube || null,
-      unidade: unidade || null,
-      age: age ? parseInt(age) : null
+      clube: finalRole === 'admin' ? null : (clube || null),
+      unidade: finalRole === 'admin' ? null : (unidade || null),
+      age: finalRole === 'admin' ? null : (age ? parseInt(age) : null)
     };
 
     // Salvar Usuário no Banco
     await db.createUser(newUser);
 
+    // Se for admin, não cria registro do participante
+    if (finalRole === 'admin') {
+      await db.addAuditLog({
+        id: 'log_' + Date.now(),
+        timestamp: new Date().toISOString(),
+        username: name,
+        action: 'Novo Diretor Cadastrado',
+        details: `Administrador ${name} criado via cadastro direto.`
+      });
+      return res.status(201).json({ success: true, message: 'Administrador cadastrado com sucesso!' });
+    }
+
     // Se for Participante, criar registro do jogo
-    if (role === 'participant') {
+    if (finalRole === 'participant') {
       const activeCampaign = await db.getActiveCampaign();
       if (!activeCampaign) {
         return res.status(500).json({ message: 'Não há nenhuma campanha ativa configurada no momento. Solicite ao Diretor.' });
@@ -319,7 +353,8 @@ app.post('/api/auth/register', async (req, res) => {
         : Math.floor(activeCampaign.minSalary + Math.random() * (activeCampaign.maxSalary - activeCampaign.minSalary));
 
       const finalSalary = Math.round(baseSalary * diff.incomeMultiplier);
-      const finalBalance = Math.round(diff.startingBalance * diff.incomeMultiplier);
+      // Saldo inicial + Salário cheio disponível no início da simulação
+      const finalBalance = Math.round(diff.startingBalance * diff.incomeMultiplier) + finalSalary;
 
       const participantId = 'part_' + Date.now();
 
@@ -385,7 +420,8 @@ app.post('/api/auth/register', async (req, res) => {
         customExtraIncomePending: [],
         goalsStatus: {},
         boughtFoodThisMonth: false, // Inicia sem comprar comida
-        notifications: [{ type: 'info', text: 'Você iniciou a simulação! Compre alimentos no Supermercado para a família.' }]
+        cleaningProductsStock: 5, // Começa com 5 cargas de material de limpeza
+        notifications: [{ type: 'info', text: 'Você iniciou a simulação! Seu saldo inicial conta com o salário cheio do mês.' }]
       };
 
       // Inserir Participante
@@ -605,8 +641,7 @@ app.post('/api/participant/:id/execute-task', authenticateToken, async (req, res
 
   try {
     const p = await db.getParticipantById(pId);
-    const campaign = await db.getActiveCampaign();
-    if (!p || !campaign) return res.status(404).json({ message: 'Erro ao carregar dados.' });
+    if (!p) return res.status(404).json({ message: 'Erro ao carregar dados do participante.' });
 
     const task = DEFAULT_TASKS.find(t => t.id === taskId);
     if (!task) return res.status(400).json({ message: 'Tarefa inválida.' });
@@ -615,25 +650,29 @@ app.post('/api/participant/:id/execute-task', authenticateToken, async (req, res
       return res.status(400).json({ message: 'Você não tem energia suficiente para realizar esta tarefa.' });
     }
 
-    const diff = INITIAL_DIFFICULTIES[campaign.difficulty];
-    const finalCost = Math.round(task.cost * diff.costMultiplier);
-
-    if (p.balance < finalCost) {
-      return res.status(400).json({ message: 'Saldo insuficiente para cobrir o custo da tarefa.' });
+    // Verificar se possui produtos de limpeza em estoque
+    if (!p.cleaningProductsStock || p.cleaningProductsStock <= 0) {
+      return res.status(400).json({ message: 'Você não tem produtos de limpeza em estoque! Compre um kit no Supermercado.' });
     }
 
+    // Debitar energia e produto de limpeza
     p.energy -= task.energyCost;
-    p.balance -= finalCost;
+    p.cleaningProductsStock -= 1;
     
+    // Novas regras: Aumenta saúde e limpeza, mas diminui um pouco a felicidade
+    const happinessDecrease = 3; // Reduz em 3% flat
     p.indicators.cleanliness = Math.min(100, p.indicators.cleanliness + task.cleanlinessImpact);
     p.indicators.health = Math.min(100, p.indicators.health + task.healthImpact);
-    p.indicators.happiness = Math.min(100, p.indicators.happiness + task.happinessImpact);
+    p.indicators.happiness = Math.max(0, p.indicators.happiness - happinessDecrease);
 
     p.tasksCompletedThisWeek.push(taskId);
-    p.notifications.unshift({ type: 'success', text: `Chore concluído: '${task.name}'. Custo: R$ ${finalCost}. Energia gasta: ${task.energyCost}%.` });
+    p.notifications.unshift({ 
+      type: 'info', 
+      text: `Tarefa concluída: '${task.name}'. Gasta 1 carga de produtos de limpeza. Energia: -${task.energyCost}%. Felicidade: -${happinessDecrease}%.` 
+    });
 
     await db.saveParticipant(p);
-    res.json({ success: true, message: 'Tarefa executada!' });
+    res.json({ success: true, message: `Tarefa '${task.name}' realizada com sucesso!` });
   } catch (err) {
     res.status(500).json({ message: 'Erro ao realizar tarefa.' });
   }
@@ -840,28 +879,73 @@ app.post('/api/participant/:id/extra-income', authenticateToken, async (req, res
   try {
     const p = await db.getParticipantById(pId);
     const campaign = await db.getActiveCampaign();
+    if (!p || !campaign) return res.status(404).json({ message: 'Dados não encontrados.' });
+
+    // Cada tarefa de renda extra pode ser feita uma vez por ciclo (mês)
+    if (p.extraIncomeCompletedThisWeek.includes(activityId)) {
+      return res.status(400).json({ message: 'Esta atividade de renda extra já foi realizada este mês.' });
+    }
 
     const act = DEFAULT_EXTRA_INCOME_ACTIVITIES.find(a => a.id === activityId);
+    if (!act) return res.status(400).json({ message: 'Atividade de renda extra inválida.' });
+
     const diff = INITIAL_DIFFICULTIES[campaign.difficulty];
-    const reward = Math.round(act.baseReward * diff.incomeMultiplier);
+    
+    // Custo de execução e probabilidade de sucesso
+    const costToExec = Math.round((act.executionCost || 0) * diff.costMultiplier);
+    const successChance = act.successProbability || 0.8;
+
+    if (p.balance < costToExec) {
+      return res.status(400).json({ message: `Saldo insuficiente para cobrir o custo de execução de R$ ${costToExec}.` });
+    }
 
     const energyCost = act.daysRequired * 15;
     if (p.energy < energyCost) {
-      return res.status(400).json({ message: 'Você está exausto para fazer renda extra.' });
+      return res.status(400).json({ message: 'Você não tem energia física suficiente para realizar este trabalho.' });
     }
 
+    // Cobrar custo financeiro e energia física
+    p.balance -= costToExec;
     p.energy -= energyCost;
-    p.balance += reward;
 
-    if (act.happinessImpact) p.indicators.happiness = Math.max(0, Math.min(100, p.indicators.happiness + act.happinessImpact));
-    if (act.healthImpact) p.indicators.health = Math.max(0, Math.min(100, p.indicators.health + act.healthImpact));
-    if (act.cleanlinessImpact) p.indicators.cleanliness = Math.max(0, Math.min(100, p.indicators.cleanliness + act.cleanlinessImpact));
+    // Rolar probabilidade de retorno
+    const isSuccess = Math.random() < successChance;
+    let actualReward = 0;
 
+    if (isSuccess) {
+      // Retorno aleatório entre 50% e 120% do estimado (baseReward * diff.incomeMultiplier)
+      const baseReward = Math.round(act.baseReward * diff.incomeMultiplier);
+      const returnMult = 0.5 + Math.random() * 0.7; // [0.5, 1.2]
+      actualReward = Math.round(baseReward * returnMult);
+      p.balance += actualReward;
+
+      // Aplicar impactos emocionais/sociais apenas se deu certo
+      if (act.happinessImpact) p.indicators.happiness = Math.max(0, Math.min(100, p.indicators.happiness + act.happinessImpact));
+      if (act.healthImpact) p.indicators.health = Math.max(0, Math.min(100, p.indicators.health + act.healthImpact));
+      if (act.cleanlinessImpact) p.indicators.cleanliness = Math.max(0, Math.min(100, p.indicators.cleanliness + act.cleanlinessImpact));
+
+      p.notifications.unshift({ 
+        type: 'success', 
+        text: `Renda Extra: '${act.name}' concluída com sucesso! Custo: R$ ${costToExec} | Retorno: R$ ${actualReward} (${(returnMult * 100).toFixed(0)}% do estimado).` 
+      });
+    } else {
+      // Falhou (retorno zero)
+      p.notifications.unshift({ 
+        type: 'danger', 
+        text: `Renda Extra: '${act.name}' falhou! Você investiu R$ ${costToExec} em materiais mas não obteve retorno financeiro.` 
+      });
+    }
+
+    // Registrar execução para bloquear reuso no ciclo
     p.extraIncomeCompletedThisWeek.push(activityId);
-    p.notifications.unshift({ type: 'success', text: `Renda extra '${act.name}' efetuada! Receita: R$ ${reward}.` });
 
     await db.saveParticipant(p);
-    res.json({ success: true, message: 'Trabalho de Renda Extra concluído!' });
+    res.json({ 
+      success: true, 
+      message: isSuccess 
+        ? `Trabalho realizado com sucesso! Retorno de R$ ${actualReward}.` 
+        : `Trabalho realizado, mas infelizmente não deu retorno e você perdeu o custo de execução.` 
+    });
   } catch (err) {
     res.status(500).json({ message: 'Erro na renda extra.' });
   }
@@ -903,6 +987,22 @@ app.post('/api/participant/:id/market-food', authenticateToken, async (req, res)
 
     const diff = INITIAL_DIFFICULTIES[campaign.difficulty];
     const sizeMult = p.family.baseExpensesMultiplier;
+
+    // Se a opção for produtos de limpeza
+    if (option === 'cleaning_products') {
+      const cost = Math.round(50 * sizeMult * diff.costMultiplier);
+      if (p.balance < cost) return res.status(400).json({ message: 'Saldo insuficiente para comprar o Kit de Limpeza.' });
+
+      p.balance -= cost;
+      p.cleaningProductsStock = (p.cleaningProductsStock || 0) + 5;
+      p.notifications.unshift({ 
+        type: 'success', 
+        text: `Comprado Kit de Produtos de Limpeza por R$ ${cost}. +5 cargas adicionadas.` 
+      });
+
+      await db.saveParticipant(p);
+      return res.json({ success: true, message: 'Kit de Produtos de Limpeza comprado!' });
+    }
 
     let cost = 0, healthImpact = 0, happinessImpact = 0, name = "";
 
