@@ -50,7 +50,7 @@ class LocalDbAdapter {
 
     const initialDb = {
       users: [
-        { id: 'admin_1', email: 'admin@gmail.com', username: 'admin', password_hash: adminPassHash, role: 'admin', name: 'Diretor Wilson Aires' },
+        { id: 'admin_1', email: 'waisilva@gmail.com', username: 'waisilva@gmail.com', password_hash: adminPassHash, role: 'admin', name: 'Diretor Wai Silva' },
         { id: 'user_wilson', email: 'wilson@gmail.com', username: 'wilson', password_hash: passHash123, role: 'participant', name: 'Wilson Aires', clube: 'Clube Pioneiros', unidade: 'Águia', age: 14 },
         { id: 'user_lucas', email: 'lucas@gmail.com', username: 'lucas', password_hash: passHash123, role: 'participant', name: 'Lucas Oliveira', clube: 'Clube Pioneiros', unidade: 'Falcão', age: 13 },
         { id: 'user_melissa', email: 'melissa@gmail.com', username: 'melissa', password_hash: passHash123, role: 'participant', name: 'Melissa Costa', clube: 'Clube Pioneiros', unidade: 'Rosa de Saron', age: 15 }

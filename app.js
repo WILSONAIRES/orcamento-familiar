@@ -31,9 +31,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const modalOnboarding = document.getElementById('modal-onboarding');
   const formOnboarding = document.getElementById('form-onboarding');
 
-  // Detecta se estamos fisicamente no painel do administrador (admin.html)
-  const isAdminPage = window.location.pathname.includes('admin.html');
-
   // 1. Inicializar Supabase se as variáveis estiverem configuradas
   const isSupabaseActive = await engine.initializeSupabase();
 
@@ -54,20 +51,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       btnTabRegister.classList.add('active');
       btnTabLogin.classList.remove('active');
       formRegister.classList.add('active');
+      formLogin.classList.add('active'); // Oculta login
       formLogin.classList.remove('active');
-    });
-  }
-
-  // Mostrar campos condicionais com base no papel selecionado (se houver seletor)
-  if (regRoleSelect) {
-    regRoleSelect.addEventListener('change', (e) => {
-      if (e.target.value === 'admin') {
-        if (regPartFields) regPartFields.style.display = 'none';
-        if (regAdminFields) regAdminFields.style.display = 'block';
-      } else {
-        if (regPartFields) regPartFields.style.display = 'block';
-        if (regAdminFields) regAdminFields.style.display = 'none';
-      }
     });
   }
 
@@ -84,19 +69,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           // Usuário cadastrado no Auth mas sem perfil público
           if (authContainer) authContainer.style.display = 'none';
           if (modalOnboarding) modalOnboarding.style.display = 'flex';
-          return;
-        }
-
-        // Validação estrita de página e papel
-        if (isAdminPage && res.user.role !== 'admin') {
-          alert("Acesso Negado: Esta página é restrita a administradores.");
-          engine.logout();
-          return;
-        }
-
-        if (!isAdminPage && res.user.role === 'admin') {
-          alert("Bem-vindo, Diretor! Redirecionando para o Painel Administrativo...");
-          window.location.href = 'admin.html';
           return;
         }
 
@@ -137,7 +109,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // --- SUBMETER REGISTRO ---
+  // --- SUBMETER REGISTRO PARTICIPANTE ---
   if (formRegister) {
     formRegister.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -145,18 +117,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       const pass = document.getElementById('reg-password').value;
       const name = document.getElementById('reg-name').value;
       
-      const role = isAdminPage ? 'admin' : 'participant';
-      let clube = null, unidade = null, age = null, adminCode = null;
+      const role = 'participant'; // Registro público sempre como participante
+      const clube = document.getElementById('reg-clube').value;
+      const unidade = document.getElementById('reg-unidade').value;
+      const age = document.getElementById('reg-age').value;
 
-      if (role === 'admin') {
-        adminCode = document.getElementById('reg-admin-code').value;
-      } else {
-        clube = document.getElementById('reg-clube').value;
-        unidade = document.getElementById('reg-unidade').value;
-        age = document.getElementById('reg-age').value;
-      }
-
-      const res = await engine.register(username, pass, role, name, clube, unidade, age, adminCode);
+      const res = await engine.register(username, pass, role, name, clube, unidade, age, null);
       alert(res.message);
       if (res.success) {
         formRegister.reset();
@@ -207,7 +173,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // --- INICIALIZAÇÃO DA SESSÃO ---
-
   async function bootstrapUserSession() {
     const user = engine.currentUser;
     if (!user) return;
@@ -219,26 +184,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    if (isAdminPage) {
-      // 1. Cenário: Página admin.html
-      if (user.role !== 'admin') {
-        alert("Acesso Negado: Apenas administradores podem acessar o painel.");
-        engine.logout();
-        return;
-      }
+    if (user.role === 'admin') {
+      // 1. Mostrar painel do administrador
+      if (viewParticipant) viewParticipant.style.display = 'none';
+      if (viewAdmin) viewAdmin.style.display = 'flex';
+      
+      // Controles do header para admin
+      const adminHeaderCtrls = document.getElementById('admin-header-controls');
+      if (adminHeaderCtrls) adminHeaderCtrls.style.display = 'block';
+      if (activeParticipantGroup) activeParticipantGroup.style.display = 'none';
 
-      if (viewAdmin) viewAdmin.style.display = 'block';
       initAdminView();
       await refreshAdminTab('admin-dashboard');
-      
     } else {
-      // 2. Cenário: Página index.html (Participante)
-      if (user.role === 'admin') {
-        window.location.href = 'admin.html';
-        return;
-      }
-
+      // 2. Mostrar ambiente do participante
+      if (viewAdmin) viewAdmin.style.display = 'none';
       if (viewParticipant) viewParticipant.style.display = 'block';
+
+      // Controles do header para participante
+      const adminHeaderCtrls = document.getElementById('admin-header-controls');
+      if (adminHeaderCtrls) adminHeaderCtrls.style.display = 'none';
+      if (activeParticipantGroup) activeParticipantGroup.style.display = 'none';
+
       initParticipantView();
 
       // Travar seletor no participante ativo
@@ -264,18 +231,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (modalOnboarding) modalOnboarding.style.display = 'flex';
       return;
     }
-    
-    // Verificações cruzadas de página e papel
-    if (isAdminPage && user.role !== 'admin') {
-      alert("Acesso Negado: Esta página é restrita a administradores.");
-      engine.logout();
-      return;
-    }
-    
-    if (!isAdminPage && user.role === 'admin') {
-      window.location.href = 'admin.html';
-      return;
-    }
 
     if (authContainer) authContainer.style.display = 'none';
     await bootstrapUserSession();
@@ -283,5 +238,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (authContainer) authContainer.style.display = 'flex';
     if (viewAdmin) viewAdmin.style.display = 'none';
     if (viewParticipant) viewParticipant.style.display = 'none';
+    const adminHeaderCtrls = document.getElementById('admin-header-controls');
+    if (adminHeaderCtrls) adminHeaderCtrls.style.display = 'none';
   }
 });
