@@ -43,6 +43,56 @@ if (SUPABASE_URL && SUPABASE_KEY) {
 app.use(cors());
 app.use(express.json());
 
+// --- AUTO-AVANÇO DE CICLO AUTOMÁTICO COM BASE NO DIA DA SEMANA ---
+async function checkAndAdvanceCyclesAutomatically() {
+  try {
+    const campaign = await db.getActiveCampaign();
+    if (!campaign || !campaign.cycleTransitionDay) return;
+
+    const daysMap = {
+      'domingo': 0, 'segunda': 1, 'terca': 2, 'terça': 2, 'quarta': 3, 'quinta': 4, 'sexta': 5, 'sabado': 6, 'sábado': 6
+    };
+
+    const targetDay = daysMap[campaign.cycleTransitionDay.toLowerCase()];
+    if (targetDay === undefined) return;
+
+    const now = new Date();
+    const currentDay = now.getDay(); // 0-6 (0=Domingo, 1=Segunda, etc.)
+
+    if (currentDay === targetDay) {
+      const todayStr = now.toISOString().split('T')[0]; // AAAA-MM-DD
+      if (campaign.lastCycleAdvanceDate !== todayStr) {
+        console.log(`⏰ [AutoCycle] Hoje é ${campaign.cycleTransitionDay}. Rodando avanço de ciclo automático...`);
+        
+        const list = await db.getParticipants();
+        const activeOnes = list.filter(p => p.finished === 0);
+
+        for (const p of activeOnes) {
+          try {
+            await advanceParticipantWeekLogic(p.id, 'Avanço Automático (Sistema)');
+          } catch (e) {
+            console.error(`Erro ao avançar participante ${p.id} automaticamente:`, e);
+          }
+        }
+
+        campaign.lastCycleAdvanceDate = todayStr;
+        await db.updateCampaign(campaign);
+
+        console.log(`⏰ [AutoCycle] Avanço de ciclo automático concluído!`);
+      }
+    }
+  } catch (err) {
+    console.error('Erro no AutoCycle:', err);
+  }
+}
+
+app.use(async (req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    checkAndAdvanceCyclesAutomatically().catch(console.error);
+  }
+  next();
+});
+
 // --- TABELAS DE LAZER (CONFIGURAÇÃO) ---
 const LEISURE_OPTIONS = {
   streaming: { id: 'streaming', name: 'Assistir Filme em Casa (Streaming)', cost: 15, happiness: 5, energy: 5 },
@@ -170,21 +220,23 @@ app.post('/api/auth/complete-profile', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: 'Perfil já existe no banco de dados.' });
     }
 
+    const isWai = req.user.email.toLowerCase() === 'waisilva@gmail.com';
+
     const newUser = {
       id: req.user.id,
       email: req.user.email,
       password_hash: null,
       role,
       name,
-      clube: role === 'admin' ? null : (clube || null),
-      unidade: role === 'admin' ? null : (unidade || null),
-      age: role === 'admin' ? null : (age ? parseInt(age) : null)
+      clube: (role === 'admin' && !isWai) ? null : (clube || null),
+      unidade: (role === 'admin' && !isWai) ? null : (unidade || null),
+      age: (role === 'admin' && !isWai) ? null : (age ? parseInt(age) : null)
     };
 
     await db.createUser(newUser);
 
-    // Se for admin, finaliza aqui (não cria participante/casa virtual)
-    if (role === 'admin') {
+    // Se for admin e NÃO for waisilva@gmail.com, finaliza aqui (não cria participante/casa virtual)
+    if (role === 'admin' && !isWai) {
       await db.addAuditLog({
         id: 'log_' + Date.now(),
         timestamp: new Date().toISOString(),
@@ -312,22 +364,24 @@ app.post('/api/auth/register', async (req, res) => {
     const userId = 'user_' + Date.now();
     const passwordHash = await bcrypt.hash(password, 10);
 
+    const isWai = username.toLowerCase() === 'waisilva@gmail.com';
+
     const newUser = {
       id: userId,
       email: username.toLowerCase(),
       password_hash: passwordHash,
       role: finalRole,
       name,
-      clube: finalRole === 'admin' ? null : (clube || null),
-      unidade: finalRole === 'admin' ? null : (unidade || null),
-      age: finalRole === 'admin' ? null : (age ? parseInt(age) : null)
+      clube: (finalRole === 'admin' && !isWai) ? null : (clube || null),
+      unidade: (finalRole === 'admin' && !isWai) ? null : (unidade || null),
+      age: (finalRole === 'admin' && !isWai) ? null : (age ? parseInt(age) : null)
     };
 
     // Salvar Usuário no Banco
     await db.createUser(newUser);
 
-    // Se for admin, não cria registro do participante
-    if (finalRole === 'admin') {
+    // Se for admin e NÃO for waisilva@gmail.com, não cria registro do participante
+    if (finalRole === 'admin' && !isWai) {
       await db.addAuditLog({
         id: 'log_' + Date.now(),
         timestamp: new Date().toISOString(),
@@ -338,8 +392,8 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(201).json({ success: true, message: 'Administrador cadastrado com sucesso!' });
     }
 
-    // Se for Participante, criar registro do jogo
-    if (finalRole === 'participant') {
+    // Se for Participante ou se for waisilva@gmail.com, criar registro do jogo
+    if (finalRole === 'participant' || isWai) {
       const activeCampaign = await db.getActiveCampaign();
       if (!activeCampaign) {
         return res.status(500).json({ message: 'Não há nenhuma campanha ativa configurada no momento. Solicite ao Diretor.' });
@@ -522,7 +576,7 @@ app.get('/api/campaign', authenticateToken, async (req, res) => {
 
 // Atualizar Campanha (Admin Only)
 app.put('/api/campaign', authenticateToken, requireAdmin, async (req, res) => {
-  const { name, difficulty, durationWeeks, fixedSalary, lateFee, interestRate, loanConfig, weights } = req.body;
+  const { name, difficulty, durationWeeks, fixedSalary, cycleTransitionDay, lateFee, interestRate, loanConfig, weights } = req.body;
 
   try {
     const campaign = await db.getActiveCampaign();
@@ -534,6 +588,7 @@ app.put('/api/campaign', authenticateToken, requireAdmin, async (req, res) => {
       difficulty,
       durationWeeks,
       fixedSalary,
+      cycleTransitionDay: cycleTransitionDay || 'Domingo',
       lateFee,
       interestRate,
       loanConfig,
@@ -973,6 +1028,43 @@ app.post('/api/participant/:id/custom-income', authenticateToken, async (req, re
     res.json({ success: true, message: 'Proposta enviada!' });
   } catch (err) {
     res.status(500).json({ message: 'Erro ao propor renda extra.' });
+  }
+});
+
+// Excluir Participante (Restrito a Admin)
+app.delete('/api/participant/:id', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Acesso negado. Apenas o Diretor pode excluir alunos.' });
+  }
+
+  const pId = req.params.id;
+
+  try {
+    const p = await db.getParticipantById(pId);
+    if (!p) {
+      return res.status(404).json({ message: 'Participante não encontrado.' });
+    }
+
+    // Excluir participante e histórico
+    await db.deleteParticipant(pId);
+
+    // Se houver userId correspondente, excluir login
+    if (p.userId) {
+      await db.deleteUser(p.userId);
+    }
+
+    await db.addAuditLog({
+      id: 'log_' + Date.now(),
+      timestamp: new Date().toISOString(),
+      username: req.user.email,
+      action: 'Excluir Aluno',
+      details: `Ficha de ${p.name} excluída permanentemente pelo administrador.`
+    });
+
+    res.json({ success: true, message: `Ficha do desbravador '${p.name}' excluída com sucesso.` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro ao excluir participante.' });
   }
 });
 

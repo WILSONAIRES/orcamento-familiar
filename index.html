@@ -102,16 +102,15 @@
     <div class="header-controls">
       <!-- Ocultos seletores de perfil administrativos -->
       <div class="control-group" id="admin-profile-selector-group" style="display: none;">
+        <label for="profile-selector" style="font-size:0.8rem;">Visualizar como:</label>
         <select id="profile-selector" class="select-modern">
-          <option value="participant">Participante</option>
+          <option value="admin">Diretor (Painel)</option>
+          <option value="participant">Aluno (Jogar)</option>
         </select>
       </div>
       <div id="active-participant-group" style="display: none;">
-        <label for="participant-selector" style="font-size:0.8rem;">Visualizar Aluno:</label>
+        <label for="participant-selector" style="font-size:0.8rem;">Escolher Aluno:</label>
         <select id="participant-selector" class="select-modern"></select>
-      </div>
-      <div id="admin-header-controls" style="display: none; margin-right: 10px;">
-        <button id="btn-advance-all-cycles" class="btn-primary btn-small">📆 Avançar Ciclo de Todos</button>
       </div>
       <button id="btn-reset-simulator" style="display: none;"></button>
 
@@ -411,6 +410,18 @@
               <div class="form-group">
                 <label for="cfg-camp-salary">Salário Base de Entrada (R$)</label>
                 <input type="number" id="cfg-camp-salary" class="input-modern" min="1000" max="6000" required>
+              </div>
+              <div class="form-group">
+                <label for="cfg-camp-cycle-day">Dia do Fechamento do Ciclo Mensal</label>
+                <select id="cfg-camp-cycle-day" class="select-modern">
+                  <option value="Domingo">Domingo</option>
+                  <option value="Segunda">Segunda-feira</option>
+                  <option value="Terca">Terça-feira</option>
+                  <option value="Quarta">Quarta-feira</option>
+                  <option value="Quinta">Quinta-feira</option>
+                  <option value="Sexta">Sexta-feira</option>
+                  <option value="Sabado">Sábado</option>
+                </select>
               </div>
             </div>
 

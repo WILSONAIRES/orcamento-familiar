@@ -224,6 +224,37 @@ class SupabaseDbAdapter {
     if (error) throw error;
     return data;
   }
+
+  async deleteParticipant(id) {
+    if (!supabase) throw new Error("Supabase não configurado.");
+    
+    // Deleta do histórico primeiro
+    const { error: histError } = await supabase
+      .from('history')
+      .delete()
+      .eq('participantId', id);
+    if (histError) throw histError;
+
+    // Deleta participante
+    const { error: partError } = await supabase
+      .from('participants')
+      .delete()
+      .eq('id', id);
+    if (partError) throw partError;
+    
+    return true;
+  }
+
+  async deleteUser(userId) {
+    if (!supabase) throw new Error("Supabase não configurado.");
+    const { error } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', userId);
+    if (error) throw error;
+    
+    return true;
+  }
 }
 
 export const supabaseAdapter = new SupabaseDbAdapter();

@@ -45,6 +45,7 @@ export function initAdminView() {
         difficulty: document.getElementById('cfg-camp-difficulty').value,
         durationWeeks: parseInt(document.getElementById('cfg-camp-duration').value),
         fixedSalary: parseInt(document.getElementById('cfg-camp-salary').value),
+        cycleTransitionDay: document.getElementById('cfg-camp-cycle-day').value,
         expensesPercentages: {
           alimentacao: parseInt(document.getElementById('cfg-perc-food').value) || 0,
           moradia: parseInt(document.getElementById('cfg-perc-housing').value) || 0,
@@ -100,28 +101,7 @@ export function initAdminView() {
     });
   }
 
-  // --- BOTÃO DE AVANÇO GLOBAL DE CICLO (TODOS OS PARTICIPANTES) ---
-  const btnAdvanceAll = document.getElementById('btn-advance-all-cycles');
-  if (btnAdvanceAll) {
-    btnAdvanceAll.addEventListener('click', async () => {
-      if (confirm("ATENÇÃO: Deseja fechar as contas mensais e avançar o ciclo de TODAS as famílias ativas ao mesmo tempo? Isso recalcula saldo, rendimentos, saúde e faturas vencidas.")) {
-        btnAdvanceAll.disabled = true;
-        btnAdvanceAll.textContent = "⌛ Processando...";
-        
-        const res = await engine.advanceAllCyclesAdmin();
-        alert(res.message);
-        
-        btnAdvanceAll.disabled = false;
-        btnAdvanceAll.textContent = "📆 Avançar Ciclo de Todos";
-
-        // Recarregar aba ativa para atualizar ranking
-        const activeTabBtn = document.querySelector('.admin-nav-btn.active');
-        if (activeTabBtn) {
-          await refreshAdminTab(activeTabBtn.getAttribute('data-tab'));
-        }
-      }
-    });
-  }
+  // O avanço de ciclo agora ocorre automaticamente no dia da semana configurado
 
   // --- BOTÕES DE EXPORTAÇÃO ---
   const btnPdf = document.getElementById('btn-export-pdf');
@@ -246,6 +226,11 @@ async function renderCampaignSettings() {
   document.getElementById('cfg-camp-difficulty').value = campaign.difficulty;
   document.getElementById('cfg-camp-duration').value = campaign.durationWeeks;
   document.getElementById('cfg-camp-salary').value = campaign.fixedSalary;
+  
+  const cycleDayEl = document.getElementById('cfg-camp-cycle-day');
+  if (cycleDayEl) {
+    cycleDayEl.value = campaign.cycleTransitionDay || 'Domingo';
+  }
 
   document.getElementById('cfg-fee-late').value = campaign.lateFee;
   document.getElementById('cfg-interest-monthly').value = campaign.interestRate;
@@ -408,7 +393,7 @@ function setupApprovalsClickHandlers() {
   });
 }
 
-// 4. Renderizar Lista de Participantes (Com Avanço Individual)
+// 4. Renderizar Lista de Participantes (Com Exclusão e Simulação Integrada)
 async function renderParticipantsList() {
   const participants = await engine.getParticipants();
   const tableBody = document.querySelector('#table-participants-list tbody');
@@ -422,44 +407,46 @@ async function renderParticipantsList() {
   participants.forEach(p => {
     const row = document.createElement('tr');
     
-    let btnAdvanceHtml = `<button class="btn-primary btn-small btn-advance-cycle-ind" data-id="${p.id}" style="margin-right: 5px;">➡️ Avançar Mês</button>`;
-    if (p.finished === 1) {
-      btnAdvanceHtml = `<span class="badge-success" style="margin-right:5px;">Simul. Concluída</span>`;
-    }
-
     row.innerHTML = `
       <td><strong>${p.name}</strong></td>
-      <td>${p.clube} / ${p.unidade}</td>
-      <td>${p.age} anos</td>
+      <td>${p.clube || 'N/A'} / ${p.unidade || 'N/A'}</td>
+      <td>${p.age ? p.age + ' anos' : 'Não informada'}</td>
       <td><span class="badge-info">${p.family.name}</span></td>
       <td>Mês ${p.week}</td>
       <td>
-        ${btnAdvanceHtml}
         <button class="btn-secondary btn-small btn-simulate-player" data-id="${p.id}">🎮 Simular</button>
+        <button class="btn-danger btn-small btn-delete-participant" data-id="${p.id}">❌ Excluir</button>
       </td>
     `;
     tableBody.appendChild(row);
   });
 
-  // Escutar avanço de ciclo individual
-  document.querySelectorAll('.btn-advance-cycle-ind').forEach(btn => {
+  // Excluir participante
+  document.querySelectorAll('.btn-delete-participant').forEach(btn => {
     btn.addEventListener('click', async () => {
       const pId = btn.getAttribute('data-id');
       const name = btn.closest('tr').querySelector('td strong').textContent;
-      if (confirm(`Deseja fechar as contas mensais e avançar o ciclo de ${name} para o próximo período?`)) {
-        const res = await engine.advanceCycleAdmin(pId);
+      if (confirm(`ATENÇÃO: Tem certeza de que deseja excluir permanentemente o cadastro de '${name}' e todas as suas faturas?`)) {
+        const res = await engine.deleteParticipant(pId);
         alert(res.message);
-        await renderParticipantsList();
+        if (res.success) {
+          await renderParticipantsList();
+        }
       }
     });
   });
 
-  // Simular jogador abrindo index.html em outra aba com seu ID
+  // Simular jogador trocando de modo em tempo real na mesma aba
   document.querySelectorAll('.btn-simulate-player').forEach(btn => {
     btn.addEventListener('click', () => {
       const pId = btn.getAttribute('data-id');
       localStorage.setItem('mf_active_part_id', pId);
-      window.open('index.html', '_blank');
+      
+      const profileSel = document.getElementById('profile-selector');
+      if (profileSel) {
+        profileSel.value = 'participant';
+        profileSel.dispatchEvent(new Event('change'));
+      }
     });
   });
 }

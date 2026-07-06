@@ -293,6 +293,15 @@ class SimulationEngine {
     return await this.apiCall('/api/participants');
   }
 
+  async deleteParticipant(id) {
+    try {
+      const res = await this.apiCall(`/api/participant/${id}`, 'DELETE');
+      return res;
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  }
+
   async getParticipantById(id) {
     return await this.apiCall(`/api/participant/${id}`);
   }

@@ -66,6 +66,8 @@ class LocalDbAdapter {
           fixedSalary: 2500,
           minSalary: 2000,
           maxSalary: 3000,
+          cycleTransitionDay: "Domingo", // Novo parâmetro: Dia do ciclo
+          lastCycleAdvanceDate: "",     // Data do último avanço rodado
           expensesPercentages: { alimentacao: 25, moradia: 25, transporte: 10, saude: 10, higiene: 5, educacao: 10, lazer: 10 },
           accountsConfig: [
             { id: 'agua', name: 'Conta de Água', enabled: true, minVal: 50, maxVal: 90 },
@@ -86,6 +88,16 @@ class LocalDbAdapter {
         }
       ],
       participants: [
+        {
+          id: 'part_admin_1', userId: 'admin_1', campaignId: 'camp_2026', week: 1, finished: 0, balance: 3300, reserve: 200, salary: 2500,
+          family: PRECONFIGURED_FAMILIES.find(f => f.id === 'padrao'), loans: [], pendingLoans: [],
+          investments: { poupanca: 100, cdb: 0, tesouro_direto: 0, fundo_acoes: 0 },
+          indicators: { health: 80, happiness: 85, cleanliness: 75, financial: 65 }, energy: 100,
+          activeIllnesses: [], activeEvents: [], unpaidBills: [], overdueBills: [],
+          tasksCompletedThisWeek: [], extraIncomeCompletedThisWeek: [], customExtraIncomePending: [], goalsStatus: {},
+          boughtFoodThisMonth: false, cleaningProductsStock: 5,
+          notifications: [{ type: 'info', text: 'Você é o Administrador da campanha, mas possui esta casa de testes para jogar e validar as regras!' }]
+        },
         {
           id: 'part_wilson', userId: 'user_wilson', campaignId: 'camp_2026', week: 1, finished: 0, balance: 3300, reserve: 200, salary: 2500,
           family: PRECONFIGURED_FAMILIES.find(f => f.id === 'padrao'), loans: [], pendingLoans: [],
@@ -120,6 +132,7 @@ class LocalDbAdapter {
         }
       ],
       history: [
+        { id: 'snap_part_admin_1_1', participantId: 'part_admin_1', week: 1, balance: 800, reserve: 200, investments: { poupanca: 100, cdb: 0, tesouro_direto: 0, fundo_acoes: 0 }, indicators: { health: 80, happiness: 85, cleanliness: 75, financial: 65 }, debt: 0, netWorth: 1100 },
         { id: 'snap_part_wilson_1', participantId: 'part_wilson', week: 1, balance: 800, reserve: 200, investments: { poupanca: 100, cdb: 0, tesouro_direto: 0, fundo_acoes: 0 }, indicators: { health: 80, happiness: 85, cleanliness: 75, financial: 65 }, debt: 0, netWorth: 1100 },
         { id: 'snap_part_lucas_1', participantId: 'part_lucas', week: 1, balance: 600, reserve: 50, investments: { poupanca: 0, cdb: 0, tesouro_direto: 0, fundo_acoes: 0 }, indicators: { health: 70, happiness: 65, cleanliness: 60, financial: 45 }, debt: 1000, netWorth: -350 },
         { id: 'snap_part_melissa_1', participantId: 'part_melissa', week: 1, balance: 1100, reserve: 400, investments: { poupanca: 300, cdb: 200, tesouro_direto: 0, fundo_acoes: 0 }, indicators: { health: 90, happiness: 90, cleanliness: 90, financial: 80 }, debt: 0, netWorth: 1800 }
@@ -261,6 +274,21 @@ class LocalDbAdapter {
   async getAuditLogs() {
     const data = await this.load();
     return data.audit_logs;
+  }
+
+  async deleteParticipant(id) {
+    const data = await this.load();
+    data.participants = data.participants.filter(p => p.id !== id);
+    data.history = data.history.filter(h => h.participantId !== id);
+    await this.save();
+    return true;
+  }
+
+  async deleteUser(userId) {
+    const data = await this.load();
+    data.users = data.users.filter(u => u.id !== userId);
+    await this.save();
+    return true;
   }
 }
 

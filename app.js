@@ -141,19 +141,46 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // --- CONTROLES DE SIMULAÇÃO (APENAS PARA PÁGINA PARTICIPANTE QUANDO SIMULADA POR ADMIN) ---
+  async function loadAdminParticipantSelector() {
+    try {
+      const parts = await engine.getParticipants();
+      if (participantSelector) {
+        participantSelector.innerHTML = parts.map(p => `<option value="${p.id}">${p.name} (${p.clube || 'N/A'})</option>`).join('');
+        participantSelector.disabled = false;
+        
+        if (parts.length > 0) {
+          let selectedId = localStorage.getItem('mf_active_part_id') || parts[0].id;
+          if (!parts.some(p => p.id === selectedId)) {
+            selectedId = parts[0].id;
+          }
+          participantSelector.value = selectedId;
+          engine.currentUser.participantId = selectedId;
+          localStorage.setItem('mf_active_part_id', selectedId);
+          await refreshParticipantView();
+        } else {
+          participantSelector.innerHTML = '<option value="">Nenhum aluno cadastrado</option>';
+          participantSelector.disabled = true;
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao listar participantes para o administrador:', err);
+    }
+  }
+
   if (profileSelector) {
     profileSelector.addEventListener('change', async (e) => {
       const role = e.target.value;
       if (role === 'participant') {
+        if (viewAdmin) viewAdmin.style.display = 'none';
         if (viewParticipant) viewParticipant.style.display = 'block';
         if (activeParticipantGroup) activeParticipantGroup.style.display = 'block';
-        
-        const selectedId = participantSelector.value;
-        if (selectedId) {
-          engine.currentUser.participantId = selectedId;
-          localStorage.setItem('mf_active_part_id', selectedId);
-        }
-        await refreshParticipantView();
+        await loadAdminParticipantSelector();
+      } else {
+        if (viewAdmin) viewAdmin.style.display = 'flex';
+        if (viewParticipant) viewParticipant.style.display = 'none';
+        if (activeParticipantGroup) activeParticipantGroup.style.display = 'none';
+        initAdminView();
+        await refreshAdminTab('admin-dashboard');
       }
     });
   }
@@ -161,6 +188,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (participantSelector) {
     participantSelector.addEventListener('change', async (e) => {
       const pId = e.target.value;
+      if (!pId) return;
       engine.currentUser.participantId = pId;
       localStorage.setItem('mf_active_part_id', pId);
       
@@ -184,31 +212,32 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    const profileSelGroup = document.getElementById('admin-profile-selector-group');
+
     if (user.role === 'admin') {
-      // 1. Mostrar painel do administrador
+      // 1. Mostrar painel do administrador por padrão
       if (viewParticipant) viewParticipant.style.display = 'none';
       if (viewAdmin) viewAdmin.style.display = 'flex';
       
-      // Controles do header para admin
-      const adminHeaderCtrls = document.getElementById('admin-header-controls');
-      if (adminHeaderCtrls) adminHeaderCtrls.style.display = 'block';
+      // Exibir o seletor de perfil/visão do administrador
+      if (profileSelGroup) profileSelGroup.style.display = 'block';
+      if (profileSelector) profileSelector.value = 'admin';
       if (activeParticipantGroup) activeParticipantGroup.style.display = 'none';
 
       initAdminView();
       await refreshAdminTab('admin-dashboard');
     } else {
-      // 2. Mostrar ambiente do participante
+      // 2. Mostrar ambiente do participante comum
       if (viewAdmin) viewAdmin.style.display = 'none';
       if (viewParticipant) viewParticipant.style.display = 'block';
 
-      // Controles do header para participante
-      const adminHeaderCtrls = document.getElementById('admin-header-controls');
-      if (adminHeaderCtrls) adminHeaderCtrls.style.display = 'none';
+      // Esconder seletores administrativos
+      if (profileSelGroup) profileSelGroup.style.display = 'none';
       if (activeParticipantGroup) activeParticipantGroup.style.display = 'none';
 
       initParticipantView();
 
-      // Travar seletor no participante ativo
+      // Travar seletor no participante logado
       if (participantSelector) {
         participantSelector.innerHTML = `<option value="${pId()}">${user.name}</option>`;
         participantSelector.disabled = true;
