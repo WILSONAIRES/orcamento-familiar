@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
     fixedSalary INTEGER DEFAULT 2500,
     minSalary INTEGER DEFAULT 2000,
     maxSalary INTEGER DEFAULT 3000,
+    cycleTransitionDay TEXT DEFAULT 'Domingo',
+    lastCycleAdvanceDate TEXT,
     expensesPercentages JSONB NOT NULL,
     accountsConfig JSONB NOT NULL,
     lateFee REAL DEFAULT 2.0,
@@ -62,7 +64,8 @@ CREATE TABLE IF NOT EXISTS participants (
     customExtraIncomePending JSONB NOT NULL,
     goalsStatus JSONB NOT NULL,
     notifications JSONB NOT NULL,
-    boughtFoodThisMonth BOOLEAN DEFAULT FALSE
+    boughtFoodThisMonth BOOLEAN DEFAULT FALSE,
+    cleaningProductsStock INTEGER DEFAULT 5
 );
 
 -- 4. Tabela de Histórico (Snapshots Mensais)
