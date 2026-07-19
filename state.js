@@ -343,6 +343,15 @@ class SimulationEngine {
     }
   }
 
+  async nextDay(participantId) {
+    try {
+      const res = await this.apiCall(`/api/participant/${participantId}/next-day`, 'POST');
+      return res;
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  }
+
   async requestLoan(participantId, amount, term, justification) {
     try {
       const res = await this.apiCall(`/api/participant/${participantId}/request-loan`, 'POST', { amount, term, justification });

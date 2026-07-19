@@ -57,6 +57,44 @@ export function initParticipantView() {
     });
   }
 
+  // --- BOTÃO MANUAL DE TRANSIÇÃO DE DIA (SIMULAÇÃO) ---
+  const btnNextDay = document.getElementById('btn-next-day');
+  if (btnNextDay) {
+    btnNextDay.addEventListener('click', async () => {
+      const currentId = engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
+      if (!currentId) return;
+
+      btnNextDay.disabled = true;
+      const res = await engine.nextDay(currentId);
+      alert(res.message);
+      btnNextDay.disabled = false;
+
+      if (res.success) {
+        await refreshParticipantView();
+      }
+    });
+  }
+
+  // --- BOTÃO MANUAL DE AVANÇO MENSAL (SIMULAÇÃO ADMIN) ---
+  const btnAdminAdvance = document.getElementById('btn-admin-advance-month');
+  if (btnAdminAdvance) {
+    btnAdminAdvance.addEventListener('click', async () => {
+      const currentId = engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
+      if (!currentId) return;
+
+      if (confirm("Você está simulando como ADMIN. Deseja forçar o avanço de mês/ciclo para este participante específico? Isso fechará as contas e gerará as faturas do próximo mês sem afetar outros alunos.")) {
+        btnAdminAdvance.disabled = true;
+        const res = await engine.advanceCycleAdmin(currentId);
+        alert(res.message);
+        btnAdminAdvance.disabled = false;
+
+        if (res.success) {
+          await refreshParticipantView();
+        }
+      }
+    });
+  }
+
   // --- FORMULÁRIO DE EMPRÉSTIMO ---
   const formLoan = document.getElementById('form-request-loan');
   if (formLoan) {
@@ -237,7 +275,19 @@ export async function refreshParticipantView() {
     // Header dados
     document.getElementById('player-family-name').textContent = `Família de ${p.name}`;
     document.getElementById('player-family-desc').textContent = `${p.family.name} (${p.clube} / ${p.unidade})`;
-    document.getElementById('player-calendar-week').textContent = `📅 Mês ${p.week} / 12`;
+    document.getElementById('player-calendar-week').textContent = `📅 Mês ${p.week} - Dia ${p.day || 1} / 30`;
+
+    // Mostrar/esconder botões de simulação baseando-se no papel (role) do usuário logado
+    const btnNextDay = document.getElementById('btn-next-day');
+    const btnAdminAdvance = document.getElementById('btn-admin-advance-month');
+    
+    if (engine.currentUser && engine.currentUser.role === 'admin') {
+      if (btnNextDay) btnNextDay.style.display = 'inline-block';
+      if (btnAdminAdvance) btnAdminAdvance.style.display = 'inline-block';
+    } else {
+      if (btnNextDay) btnNextDay.style.display = 'none';
+      if (btnAdminAdvance) btnAdminAdvance.style.display = 'none';
+    }
 
     // Barra de Indicadores (%)
     const updateBar = (id, barId, valId) => {

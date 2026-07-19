@@ -636,6 +636,75 @@ app.get('/api/participant/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ message: 'Acesso não autorizado a esta família.' });
     }
 
+    // Virar o dia automaticamente se o dia real calendário mudou (virada às 00h)
+    const checkAndAdvanceDaysAutomatically = async (part) => {
+      try {
+        const now = new Date();
+        const todayStr = now.toISOString().split('T')[0]; // AAAA-MM-DD
+        
+        part.day = part.day || 1;
+        part.lastDayTransitionDate = part.lastDayTransitionDate || todayStr;
+        part.tasksCompletedToday = part.tasksCompletedToday || [];
+        part.ateToday = part.ateToday || false;
+
+        if (part.lastDayTransitionDate !== todayStr) {
+          if (part.day < 30) {
+            console.log(`⏰ [AutoDay] Virando dia automático para ${part.id}. De ${part.day} para ${part.day + 1}`);
+            let logs = [];
+            
+            // 1. Limpeza (clean_house)
+            const cleanedToday = part.tasksCompletedToday.includes('clean_house');
+            if (!cleanedToday) {
+              part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 15);
+              part.indicators.health = Math.max(0, part.indicators.health - 3);
+              part.indicators.happiness = Math.max(0, part.indicators.happiness - 3);
+              logs.push('A casa não foi limpa hoje (Limpeza: -15%, Saúde: -3%, Felicidade: -3%)');
+            }
+
+            // 2. Pratos (wash_dishes)
+            const washedToday = part.tasksCompletedToday.includes('wash_dishes');
+            if (!washedToday) {
+              part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 10);
+              part.indicators.health = Math.max(0, part.indicators.health - 2);
+              part.indicators.happiness = Math.max(0, part.indicators.happiness - 2);
+              logs.push('A louça não foi lavada hoje (Limpeza: -10%, Saúde: -2%, Felicidade: -2%)');
+            }
+
+            // 3. Alimentação
+            const preparedToday = part.tasksCompletedToday.includes('prepare_meals');
+            const hasAte = part.ateToday || preparedToday;
+
+            if (!hasAte) {
+              part.indicators.health = 10;
+              part.indicators.happiness = 10;
+              logs.push('⚠️ A família ficou com FOME hoje! Saúde e Felicidade desceram para o nível mais baixo (10%)!');
+            }
+
+            part.day += 1;
+            part.tasksCompletedToday = [];
+            part.ateToday = false;
+            part.energy = 100;
+
+            const msgStr = logs.length > 0 
+              ? `Dia ${part.day - 1} finalizado. Ocorrências: ${logs.join('; ')}`
+              : `Dia ${part.day - 1} finalizado com sucesso! Toda a rotina diária foi cumprida. Energia restaurada.`;
+            
+            part.notifications.unshift({ 
+              type: logs.length > 0 ? 'warning' : 'success', 
+              text: msgStr 
+            });
+          }
+          
+          part.lastDayTransitionDate = todayStr;
+          await db.saveParticipant(part);
+        }
+      } catch (err) {
+        console.error('Erro na transição de dia automática:', err);
+      }
+    };
+
+    await checkAndAdvanceDaysAutomatically(p);
+
     const historySnaps = await db.getHistory(pId);
     p.history = historySnaps;
 
@@ -721,6 +790,13 @@ app.post('/api/participant/:id/execute-task', authenticateToken, async (req, res
     p.indicators.happiness = Math.max(0, p.indicators.happiness - happinessDecrease);
 
     p.tasksCompletedThisWeek.push(taskId);
+    p.tasksCompletedToday = p.tasksCompletedToday || [];
+    if (!p.tasksCompletedToday.includes(taskId)) {
+      p.tasksCompletedToday.push(taskId);
+    }
+    if (taskId === 'prepare_meals') {
+      p.ateToday = true;
+    }
     p.notifications.unshift({ 
       type: 'info', 
       text: `Tarefa concluída: '${task.name}'. Gasta 1 carga de produtos de limpeza. Energia: -${task.energyCost}%. Felicidade: -${happinessDecrease}%.` 
@@ -1119,12 +1195,100 @@ app.post('/api/participant/:id/market-food', authenticateToken, async (req, res)
     
     // Grava compra de comida
     p.boughtFoodThisMonth = true; 
+    p.ateToday = true;
     p.notifications.unshift({ type: 'success', text: `Compra de alimentação '${name}' efetuada por R$ ${cost}. Família alimentada!` });
 
     await db.saveParticipant(p);
     res.json({ success: true, message: 'Comida comprada!' });
   } catch (err) {
     res.status(500).json({ message: 'Erro no mercado.' });
+  }
+});
+
+// Virar o Dia / Dormir (Recuperar Energia e Aplicar Regras Diárias)
+app.post('/api/participant/:id/next-day', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+
+  try {
+    const p = await db.getParticipantById(pId);
+    if (!p) return res.status(404).json({ message: 'Participante não encontrado.' });
+
+    // Fallbacks para novos campos
+    p.day = p.day || 1;
+    p.tasksCompletedToday = p.tasksCompletedToday || [];
+    p.ateToday = p.ateToday || false;
+    p.cleaningProductsStock = p.cleaningProductsStock !== undefined ? p.cleaningProductsStock : 5;
+
+    // Se o dia do participante for >= 30, ele não pode avançar o dia sozinho. Ele deve esperar a virada do mês pelo admin!
+    if (p.day >= 30) {
+      return res.status(400).json({ 
+        message: 'Você atingiu o dia 30 do ciclo! Aguarde o Diretor fechar as contas e avançar o ciclo mensal da campanha para iniciar o próximo mês.' 
+      });
+    }
+
+    let logs = [];
+    
+    // 1. Verificar Limpeza (Tarefa clean_house)
+    const cleanedToday = p.tasksCompletedToday.includes('clean_house');
+    if (!cleanedToday) {
+      p.indicators.cleanliness = Math.max(0, p.indicators.cleanliness - 15);
+      p.indicators.health = Math.max(0, p.indicators.health - 3);
+      p.indicators.happiness = Math.max(0, p.indicators.happiness - 3);
+      logs.push('A casa não foi limpa hoje (Limpeza: -15%, Saúde: -3%, Felicidade: -3%)');
+    }
+
+    // 2. Verificar Pratos (Tarefa wash_dishes)
+    const washedToday = p.tasksCompletedToday.includes('wash_dishes');
+    if (!washedToday) {
+      p.indicators.cleanliness = Math.max(0, p.indicators.cleanliness - 10);
+      p.indicators.health = Math.max(0, p.indicators.health - 2);
+      p.indicators.happiness = Math.max(0, p.indicators.happiness - 2);
+      logs.push('A louça não foi lavada hoje (Limpeza: -10%, Saúde: -2%, Felicidade: -2%)');
+    }
+
+    // 3. Verificar Alimentação (Tarefa prepare_meals ou comprado do supermercado hoje)
+    const preparedToday = p.tasksCompletedToday.includes('prepare_meals');
+    const hasAte = p.ateToday || preparedToday;
+
+    if (!hasAte) {
+      // "caso o usuário não faça nada de alimentação, saude e felicidade já vão para o nivel mais baixo"
+      p.indicators.health = 10; // Nível mais baixo
+      p.indicators.happiness = 10; // Nível mais baixo
+      logs.push('⚠️ A família ficou com FOME hoje! Saúde e Felicidade despencaram para o nível mais baixo (10%)!');
+    }
+
+    // Incrementar dia
+    p.day += 1;
+
+    // Resetar flags diárias
+    p.tasksCompletedToday = [];
+    p.ateToday = false;
+
+    // Recuperar energia total (dormir)
+    p.energy = 100;
+
+    // Formatar notificação
+    const msgStr = logs.length > 0 
+      ? `Dia ${p.day - 1} finalizado. Ocorrências: ${logs.join('; ')}`
+      : `Dia ${p.day - 1} finalizado com sucesso! Toda a rotina diária foi cumprida. Energia restaurada.`;
+    
+    p.notifications.unshift({ 
+      type: logs.length > 0 ? 'warning' : 'success', 
+      text: msgStr 
+    });
+
+    await db.saveParticipant(p);
+    
+    res.json({ 
+      success: true, 
+      message: logs.length > 0 
+        ? `Você foi dormir. Algumas obrigações ficaram pendentes:\n- ${logs.join('\n- ')}` 
+        : `Você dormiu bem! Toda a rotina diária foi cumprida. Energia restaurada. Bem-vindo ao Dia ${p.day}!`,
+      participant: p
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro ao virar o dia.' });
   }
 });
 
@@ -1415,6 +1579,7 @@ async function advanceParticipantWeekLogic(pId, adminName) {
 
   // 12. Incrementar tempo
   p.week += 1;
+  p.day = 1;
   p.energy = 100;
   p.tasksCompletedThisWeek = [];
   p.extraIncomeCompletedThisWeek = [];
