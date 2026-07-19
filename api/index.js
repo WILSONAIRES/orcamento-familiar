@@ -215,12 +215,18 @@ app.post('/api/auth/complete-profile', authenticateToken, async (req, res) => {
   }
 
   try {
+    const isWai = req.user.email.toLowerCase() === 'waisilva@gmail.com';
+
+    // Gerar faturas e casa virtual inicial para participantes (e admin Wai Silva que joga)
+    const activeCampaign = await db.getActiveCampaign();
+    if (!activeCampaign) {
+      return res.status(500).json({ message: 'A campanha ativa não está semeada no banco de dados. Configure a campanha no banco primeiro.' });
+    }
+
     const existingUser = await db.getUser(req.user.email);
     if (existingUser) {
       return res.status(400).json({ message: 'Perfil já existe no banco de dados.' });
     }
-
-    const isWai = req.user.email.toLowerCase() === 'waisilva@gmail.com';
 
     const newUser = {
       id: req.user.id,
@@ -245,12 +251,6 @@ app.post('/api/auth/complete-profile', authenticateToken, async (req, res) => {
         details: `Administrador ${name} criado via Google OAuth.`
       });
       return res.json({ success: true, message: 'Perfil de Administrador criado com sucesso!', role: 'admin' });
-    }
-
-    // Gerar faturas e casa virtual inicial para participantes
-    const activeCampaign = await db.getActiveCampaign();
-    if (!activeCampaign) {
-      return res.status(500).json({ message: 'Campanha ativa não configurada.' });
     }
 
     const diff = INITIAL_DIFFICULTIES[activeCampaign.difficulty];
