@@ -1090,45 +1090,89 @@ function updateVisualHouseAndFamily(p) {
     });
   }
 
-  // 3. Atualizar Planta da Casa Visual (Cômodos, Limpeza e Reparos)
+  // 3. Atualizar Planta da Casa Visual (Todos os Cômodos & Limpeza)
   const cleanVal = p.indicators.cleanliness || 0;
-  const roomChores = document.getElementById('room-card-chores');
   const cleanlinessIndicator = document.getElementById('room-cleanliness-indicator');
+  const houseRooms = ['room-card-hall', 'room-card-chores', 'room-card-kitchen', 'room-card-leisure', 'room-card-bills', 'room-card-maintenance'];
 
-  if (roomChores && cleanlinessIndicator) {
-    // Reset classes
-    roomChores.classList.remove('room-clean-sparkle', 'room-dirty-dust', 'room-dirty-chaotic');
-    
+  if (cleanlinessIndicator) {
     if (cleanVal >= 80) {
-      roomChores.classList.add('room-clean-sparkle');
-      cleanlinessIndicator.innerHTML = '<span style="color:var(--success);">✨ Limpo e Brilhando</span>';
-      roomChores.style.boxShadow = '0 0 15px rgba(34, 197, 94, 0.15)';
+      cleanlinessIndicator.innerHTML = '<span style="color:var(--success);">✨ Limpeza: ' + cleanVal + '%</span>';
     } else if (cleanVal >= 50) {
-      cleanlinessIndicator.innerHTML = '<span style="color:var(--info);">👍 Organizado</span>';
-      roomChores.style.boxShadow = 'none';
+      cleanlinessIndicator.innerHTML = '<span style="color:var(--info);">👍 Limpeza: ' + cleanVal + '%</span>';
     } else if (cleanVal >= 30) {
-      roomChores.classList.add('room-dirty-dust');
-      cleanlinessIndicator.innerHTML = '<span style="color:var(--warning);">💨 Poeira Acumulada</span>';
-      roomChores.style.boxShadow = 'none';
+      cleanlinessIndicator.innerHTML = '<span style="color:var(--warning);">💨 Limpeza: ' + cleanVal + '%</span>';
     } else {
-      roomChores.classList.add('room-dirty-chaotic');
-      cleanlinessIndicator.innerHTML = '<span style="color:var(--danger); animation: pulse-red 1.5s infinite;">🪰 Caótico / Sujeira Pesada</span>';
-      roomChores.style.boxShadow = '0 0 15px rgba(239, 68, 68, 0.25)';
+      cleanlinessIndicator.innerHTML = '<span style="color:var(--danger); font-weight:bold; animation: blink-text 1.2s infinite;">🪰 Limpeza: ' + cleanVal + '%</span>';
     }
   }
 
-  // 4. Detalhes de Consertos da Casa (Consertos Card)
+  houseRooms.forEach(roomId => {
+    const room = document.getElementById(roomId);
+    if (room) {
+      room.classList.remove('room-clean-sparkle', 'room-dirty-dust', 'room-dirty-chaotic');
+      
+      if (cleanVal >= 80) {
+        room.classList.add('room-clean-sparkle');
+        room.style.boxShadow = '0 0 12px rgba(34, 197, 94, 0.12)';
+      } else if (cleanVal >= 50) {
+        room.style.boxShadow = 'none';
+      } else if (cleanVal >= 30) {
+        room.classList.add('room-dirty-dust');
+        room.style.boxShadow = 'none';
+      } else {
+        room.classList.add('room-dirty-chaotic');
+        room.style.boxShadow = '0 0 15px rgba(239, 68, 68, 0.2)';
+      }
+    }
+  });
+
+  // 4. Detalhes de Consertos da Casa & Alertas Específicos nos Cômodos
   const roomMaintenance = document.getElementById('room-card-maintenance');
+  const roomKitchen = document.getElementById('room-card-kitchen');
+  const roomBathroom = document.getElementById('room-card-chores');
+  
+  const hasLeak = p.activeEvents.some(e => e.id === 'pipe_leak');
+  const hasFridge = p.activeEvents.some(e => e.id === 'fridge_repair');
+
+  // Limpar alertas específicos antigos
+  const existingAlertLeak = document.getElementById('alert-leak');
+  if (existingAlertLeak) existingAlertLeak.remove();
+  const existingAlertFridge = document.getElementById('alert-fridge');
+  if (existingAlertFridge) existingAlertFridge.remove();
+
+  if (roomBathroom) {
+    roomBathroom.style.border = '';
+    if (hasLeak) {
+      roomBathroom.style.border = '2px solid var(--danger)';
+      const badge = document.createElement('div');
+      badge.id = 'alert-leak';
+      badge.className = 'room-alert-badge';
+      badge.style.cssText = 'background:var(--danger); color:white; font-size:0.65rem; padding:2px 6px; border-radius:4px; margin-top:5px; font-weight:bold; animation: pulse-red 1.2s infinite;';
+      badge.textContent = '💧 Vazamento Ativo!';
+      roomBathroom.appendChild(badge);
+    }
+  }
+
+  if (roomKitchen) {
+    roomKitchen.style.border = '';
+    if (hasFridge) {
+      roomKitchen.style.border = '2px solid var(--danger)';
+      const badge = document.createElement('div');
+      badge.id = 'alert-fridge';
+      badge.className = 'room-alert-badge';
+      badge.style.cssText = 'background:var(--danger); color:white; font-size:0.65rem; padding:2px 6px; border-radius:4px; margin-top:5px; font-weight:bold; animation: pulse-red 1.2s infinite;';
+      badge.textContent = '🔌 Geladeira Queimada!';
+      roomKitchen.appendChild(badge);
+    }
+  }
+
   if (roomMaintenance) {
-    const hasLeak = p.activeEvents.some(e => e.id === 'pipe_leak');
-    const hasFridge = p.activeEvents.some(e => e.id === 'fridge_repair');
-    
     roomMaintenance.classList.remove('maintenance-alert-active');
     
     if (hasLeak || hasFridge) {
       roomMaintenance.classList.add('maintenance-alert-active');
       roomMaintenance.style.border = '2px solid var(--danger)';
-      roomMaintenance.style.boxShadow = '0 0 20px rgba(239, 68, 68, 0.35)';
       
       let warnings = [];
       if (hasLeak) warnings.push('💧 Vazamento de Água');
@@ -1136,11 +1180,10 @@ function updateVisualHouseAndFamily(p) {
       
       const descEl = roomMaintenance.querySelector('p');
       if (descEl) {
-        descEl.innerHTML = `<strong class="red-text" style="animation: blink-text 1.2s infinite; display:block;">⚠️ REPAROS URGENTES:</strong><span style="font-size:0.75rem; color:var(--text-light);">${warnings.join('<br>')}</span>`;
+        descEl.innerHTML = `<strong class="red-text" style="animation: blink-text 1.2s infinite; display:block;">⚠️ REPAROS URGENTES:</strong><span style="font-size:0.7rem; color:var(--text-light);">${warnings.join('<br>')}</span>`;
       }
     } else {
       roomMaintenance.style.border = 'none';
-      roomMaintenance.style.boxShadow = 'none';
       const descEl = roomMaintenance.querySelector('p');
       if (descEl) {
         descEl.textContent = 'Consertar vazamentos ou quebras de aparelhos domésticos.';
@@ -1156,7 +1199,7 @@ function updateVisualHouseAndFamily(p) {
     const healthy = p.foodStockHealthy !== undefined ? p.foodStockHealthy : 5;
     const premium = p.foodStockPremium || 0;
     foodIndicator.innerHTML = `
-      <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted); margin-top:5px;">
+      <div style="display:flex; justify-content:space-between; font-size:0.65rem; color:var(--text-muted); margin-top:5px; flex-wrap:wrap;">
         <span>Basic: <strong>${basic}</strong></span>
         <span>Saudável: <strong>${healthy}</strong></span>
         <span>Premium: <strong>${premium}</strong></span>
