@@ -80,26 +80,7 @@ export function initAdminView() {
     });
   }
 
-  // --- CADASTRO DE ALUNOS ---
-  const formRegister = document.getElementById('form-register-participant');
-  if (formRegister) {
-    formRegister.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const name = document.getElementById('reg-part-name').value;
-      const clube = document.getElementById('reg-part-clube').value;
-      const unidade = document.getElementById('reg-part-unidade').value;
-      const age = document.getElementById('reg-part-age').value;
 
-      const newPart = await engine.registerParticipant(name, clube, unidade, age);
-      if (newPart) {
-        alert(`Ficha cadastrada! O desbravador poderá logar no simulador.`);
-        formRegister.reset();
-        await refreshAdminTab('admin-participants');
-      } else {
-        alert('Erro ao cadastrar participante.');
-      }
-    });
-  }
 
   // O avanço de ciclo agora ocorre automaticamente no dia da semana configurado
 
