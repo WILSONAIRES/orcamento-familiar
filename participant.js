@@ -1103,7 +1103,7 @@ function updateVisualHouseAndFamily(p) {
     } else if (cleanVal >= 30) {
       cleanlinessIndicator.innerHTML = '<span style="color:var(--warning);">💨 Limpeza: ' + cleanVal + '%</span>';
     } else {
-      cleanlinessIndicator.innerHTML = '<span style="color:var(--danger); font-weight:bold; animation: blink-text 1.2s infinite;">🪰 Limpeza: ' + cleanVal + '%</span>';
+      cleanlinessIndicator.innerHTML = '<span style="color:var(--danger); font-weight:bold; animation: blink-text 1.2s infinite;">⚠️ Limpeza Crítica: ' + cleanVal + '%</span>';
     }
   }
 
