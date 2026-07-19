@@ -356,6 +356,9 @@ export async function refreshParticipantView() {
         });
       }
     }
+
+    // Atualizar Planta da Casa Visual & Quadro da Família
+    updateVisualHouseAndFamily(p);
   } catch (err) {
     console.error("Erro ao recarregar a visualização do participante:", err);
   }
@@ -955,4 +958,209 @@ function renderMaintenanceProblems(p) {
       }
     });
   });
+}
+
+// --- PLANTA DA CASA VISUAL & QUADRO DA FAMÍLIA (🎨 NOVO) ---
+function updateVisualHouseAndFamily(p) {
+  // 1. Atualizar Checklist de Rotina Diária
+  const checklistContainer = document.getElementById('daily-checklist-container');
+  if (checklistContainer) {
+    checklistContainer.innerHTML = '';
+    
+    const tasks = [
+      {
+        name: 'Limpeza Geral da Casa',
+        icon: '🧹',
+        completed: p.tasksCompletedToday.includes('clean_house'),
+        freq: 'Semanal (Recomendado)'
+      },
+      {
+        name: 'Lavar a Louça Acumulada',
+        icon: '🍽️',
+        completed: p.tasksCompletedToday.includes('wash_dishes'),
+        freq: 'Diária (Obrigatória)'
+      },
+      {
+        name: 'Cozinhar / Alimentação',
+        icon: '🍳',
+        completed: p.ateToday || p.tasksCompletedToday.some(t => t.startsWith('prepare_meals')),
+        freq: 'Diária (Obrigatória)'
+      }
+    ];
+
+    tasks.forEach(t => {
+      const item = document.createElement('div');
+      item.style.display = 'flex';
+      item.style.alignItems = 'center';
+      item.style.justifyContent = 'space-between';
+      item.style.padding = '8px 12px';
+      item.style.borderRadius = '8px';
+      item.style.background = t.completed ? 'rgba(34, 197, 94, 0.08)' : 'rgba(239, 68, 68, 0.05)';
+      item.style.border = t.completed ? '1px solid rgba(34, 197, 94, 0.2)' : '1px solid rgba(239, 68, 68, 0.1)';
+      
+      item.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span>${t.icon}</span>
+          <div>
+            <span style="font-size:0.85rem; font-weight:600; color:var(--text-light); text-decoration:${t.completed ? 'line-through' : 'none'};">${t.name}</span>
+            <span style="display:block; font-size:0.65rem; color:var(--text-muted);">${t.freq}</span>
+          </div>
+        </div>
+        <span style="font-size:0.8rem; font-weight:700; color:${t.completed ? 'var(--success)' : 'var(--danger)'};">
+          ${t.completed ? '✔️ Concluído' : '⏳ Pendente'}
+        </span>
+      `;
+      checklistContainer.appendChild(item);
+    });
+  }
+
+  // 2. Atualizar Quadro da Família (Membros & Expressões)
+  const familyContainer = document.getElementById('family-members-container');
+  if (familyContainer && p.family && p.family.members) {
+    familyContainer.innerHTML = '';
+
+    const isSick = p.activeIllnesses.length > 0;
+    const isHungry = !p.ateToday && !p.tasksCompletedToday.some(t => t.startsWith('prepare_meals'));
+    const isTired = p.energy < 30;
+    const isSad = p.indicators.happiness < 40;
+    const isStressed = p.indicators.happiness < 20;
+
+    p.family.members.forEach(member => {
+      let face = '😊';
+      let statusText = 'Saudável e Feliz';
+      let statusColor = 'var(--success)';
+      let cardBg = 'rgba(34, 197, 94, 0.05)';
+      let borderCol = 'rgba(34, 197, 94, 0.2)';
+
+      if (isSick) {
+        face = '🤒';
+        const illnessNames = p.activeIllnesses.map(i => i.name).join(', ');
+        statusText = `Doente: ${illnessNames}`;
+        statusColor = 'var(--danger)';
+        cardBg = 'rgba(239, 68, 68, 0.08)';
+        borderCol = 'rgba(239, 68, 68, 0.3)';
+      } else if (isHungry) {
+        face = '🤢';
+        statusText = 'Com Fome / Sem comer';
+        statusColor = 'var(--warning)';
+        cardBg = 'rgba(249, 115, 22, 0.08)';
+        borderCol = 'rgba(249, 115, 22, 0.3)';
+      } else if (isTired) {
+        face = '🥱';
+        statusText = 'Muito Cansado';
+        statusColor = '#a855f7';
+        cardBg = 'rgba(168, 85, 247, 0.08)';
+        borderCol = 'rgba(168, 85, 247, 0.3)';
+      } else if (isStressed) {
+        face = '😡';
+        statusText = 'Extremamente Estressado';
+        statusColor = 'var(--danger)';
+        cardBg = 'rgba(239, 68, 68, 0.08)';
+        borderCol = 'rgba(239, 68, 68, 0.3)';
+      } else if (isSad) {
+        face = '😞';
+        statusText = 'Triste / Desanimado';
+        statusColor = 'var(--info)';
+        cardBg = 'rgba(59, 130, 246, 0.08)';
+        borderCol = 'rgba(59, 130, 246, 0.3)';
+      }
+
+      const card = document.createElement('div');
+      card.className = 'family-member-card glass-panel';
+      card.style.display = 'flex';
+      card.style.alignItems = 'center';
+      card.style.gap = '12px';
+      card.style.padding = '10px 12px';
+      card.style.borderRadius = '10px';
+      card.style.background = cardBg;
+      card.style.border = `1px solid ${borderCol}`;
+      card.style.transition = 'transform 0.2s';
+      
+      card.innerHTML = `
+        <div class="avatar-wrapper" style="font-size:2.2rem; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.15)); display:flex; align-items:center; justify-content:center; width:45px; height:45px; background:rgba(255,255,255,0.05); border-radius:50%; border:1px solid rgba(255,255,255,0.1);">
+          ${face}
+        </div>
+        <div style="flex-grow:1;">
+          <h4 style="margin:0; font-size:0.9rem; color:var(--text-light);">${member.name} (${member.relation === 'self' ? 'Você' : 'Cônjuge'})</h4>
+          <span style="font-size:0.7rem; color:var(--text-muted); display:block;">Idade: ${member.age} anos</span>
+          <span style="font-size:0.75rem; font-weight:600; color:${statusColor}; display:block; margin-top:2px;">${statusText}</span>
+        </div>
+      `;
+      familyContainer.appendChild(card);
+    });
+  }
+
+  // 3. Atualizar Planta da Casa Visual (Cômodos, Limpeza e Reparos)
+  const cleanVal = p.indicators.cleanliness || 0;
+  const roomChores = document.getElementById('room-card-chores');
+  const cleanlinessIndicator = document.getElementById('room-cleanliness-indicator');
+
+  if (roomChores && cleanlinessIndicator) {
+    // Reset classes
+    roomChores.classList.remove('room-clean-sparkle', 'room-dirty-dust', 'room-dirty-chaotic');
+    
+    if (cleanVal >= 80) {
+      roomChores.classList.add('room-clean-sparkle');
+      cleanlinessIndicator.innerHTML = '<span style="color:var(--success);">✨ Limpo e Brilhando</span>';
+      roomChores.style.boxShadow = '0 0 15px rgba(34, 197, 94, 0.15)';
+    } else if (cleanVal >= 50) {
+      cleanlinessIndicator.innerHTML = '<span style="color:var(--info);">👍 Organizado</span>';
+      roomChores.style.boxShadow = 'none';
+    } else if (cleanVal >= 30) {
+      roomChores.classList.add('room-dirty-dust');
+      cleanlinessIndicator.innerHTML = '<span style="color:var(--warning);">💨 Poeira Acumulada</span>';
+      roomChores.style.boxShadow = 'none';
+    } else {
+      roomChores.classList.add('room-dirty-chaotic');
+      cleanlinessIndicator.innerHTML = '<span style="color:var(--danger); animation: pulse-red 1.5s infinite;">🪰 Caótico / Sujeira Pesada</span>';
+      roomChores.style.boxShadow = '0 0 15px rgba(239, 68, 68, 0.25)';
+    }
+  }
+
+  // 4. Detalhes de Consertos da Casa (Consertos Card)
+  const roomMaintenance = document.getElementById('room-card-maintenance');
+  if (roomMaintenance) {
+    const hasLeak = p.activeEvents.some(e => e.id === 'pipe_leak');
+    const hasFridge = p.activeEvents.some(e => e.id === 'fridge_repair');
+    
+    roomMaintenance.classList.remove('maintenance-alert-active');
+    
+    if (hasLeak || hasFridge) {
+      roomMaintenance.classList.add('maintenance-alert-active');
+      roomMaintenance.style.border = '2px solid var(--danger)';
+      roomMaintenance.style.boxShadow = '0 0 20px rgba(239, 68, 68, 0.35)';
+      
+      let warnings = [];
+      if (hasLeak) warnings.push('💧 Vazamento de Água');
+      if (hasFridge) warnings.push('🔌 Geladeira Queimada');
+      
+      const descEl = roomMaintenance.querySelector('p');
+      if (descEl) {
+        descEl.innerHTML = `<strong class="red-text" style="animation: blink-text 1.2s infinite; display:block;">⚠️ REPAROS URGENTES:</strong><span style="font-size:0.75rem; color:var(--text-light);">${warnings.join('<br>')}</span>`;
+      }
+    } else {
+      roomMaintenance.style.border = 'none';
+      roomMaintenance.style.boxShadow = 'none';
+      const descEl = roomMaintenance.querySelector('p');
+      if (descEl) {
+        descEl.textContent = 'Consertar vazamentos ou quebras de aparelhos domésticos.';
+      }
+    }
+  }
+
+  // 5. Exibir estoques de suprimentos no card do Supermercado
+  const roomMarket = document.getElementById('room-card-market');
+  const foodIndicator = document.getElementById('room-food-indicator');
+  if (roomMarket && foodIndicator) {
+    const basic = p.foodStockBasic || 0;
+    const healthy = p.foodStockHealthy !== undefined ? p.foodStockHealthy : 5;
+    const premium = p.foodStockPremium || 0;
+    foodIndicator.innerHTML = `
+      <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted); margin-top:5px;">
+        <span>Basic: <strong>${basic}</strong></span>
+        <span>Saudável: <strong>${healthy}</strong></span>
+        <span>Premium: <strong>${premium}</strong></span>
+      </div>
+    `;
+  }
 }

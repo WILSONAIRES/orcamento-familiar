@@ -206,82 +206,119 @@
 
       </div>
 
-      <!-- GRID DA CASA VIRTUAL (Navegação visual por Ambientes) -->
-      <div class="house-layout-grid">
+      <!-- CONTAINER PRINCIPAL DO SIMULADOR (Sidebar + Planta da Casa) -->
+      <div class="participant-gameplay-container" style="display: flex; gap: 1.5rem; margin-top: 1.5rem; flex-wrap: wrap;">
         
-        <div class="room-card glass-panel clickable" data-modal="modal-hall">
-          <span class="room-emoji">🏠</span>
-          <h3>Sala da Família</h3>
-          <p>Conselho do tutor, eventos do ciclo e avisos gerais.</p>
-        </div>
-
-        <div class="room-card glass-panel clickable" data-modal="modal-bank">
-          <span class="room-emoji">🏦</span>
-          <h3>Banco Virtual</h3>
-          <p>Pedir empréstimo, guardar reserva de emergência e extrato.</p>
-        </div>
-
-        <div class="room-card glass-panel clickable" data-modal="modal-bills">
-          <span class="room-emoji">📋</span>
-          <h3>Contas a Pagar</h3>
-          <p>Ver contas fixas do mês e pagar faturas atrasadas.</p>
-          <span id="badge-unpaid-bills" class="badge-danger counter-badge" style="display:none;">0</span>
-        </div>
-
-        <div class="room-card glass-panel clickable" data-modal="modal-chores">
-          <span class="room-emoji">🧹</span>
-          <h3>Tarefas Domésticas</h3>
-          <p>Limpar a casa, lavar louça e cozinhar para manter a higiene.</p>
-          <div class="energy-energy">
-            <span>Energia: <strong id="val-player-energy">100%</strong></span>
+        <!-- SIDEBAR ESQUERDA: Rotina Diária & Quadro da Família -->
+        <div class="gameplay-sidebar" style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 1.5rem;">
+          
+          <!-- CARD DA ROTINA DIÁRIA -->
+          <div class="sidebar-card glass-panel" style="padding: 1.5rem; border: 1px solid var(--border-color); border-radius: 12px;">
+            <h3 style="margin-top:0; display:flex; align-items:center; gap:8px;">📋 Rotina de Hoje</h3>
+            <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:1rem; line-height: 1.3;">Complete essas tarefas para evitar que a saúde e felicidade da família despenquem.</p>
+            <div id="daily-checklist-container" style="display:flex; flex-direction:column; gap:10px;">
+              <!-- Injetado dinamicamente via JS -->
+            </div>
           </div>
+          
+          <!-- CARD DO QUADRO DO COBRADOR / FAMÍLIA -->
+          <div class="sidebar-card glass-panel" style="padding: 1.5rem; border: 1px solid var(--border-color); border-radius: 12px;">
+            <h3 style="margin-top:0; display:flex; align-items:center; gap:8px;">👥 Quadro da Família</h3>
+            <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:1rem; line-height: 1.3;">Aparência e humor de cada membro da família.</p>
+            <div id="family-members-container" style="display:flex; flex-direction:column; gap:12px;">
+              <!-- Injetado dinamicamente via JS -->
+            </div>
+          </div>
+
         </div>
 
-        <div class="room-card glass-panel clickable" data-modal="modal-market">
-          <span class="room-emoji">🛒</span>
-          <h3>Supermercado</h3>
-          <p>Comprar comida (Básica, Equilibrada ou Saudável) ativamente.</p>
-        </div>
+        <!-- PLANTA DA CASA (Grid de Cômodos/Ambientes) -->
+        <div class="gameplay-main" style="flex: 2 2 600px; display:flex; flex-direction:column; gap:1rem;">
+          
+          <div class="visual-house-header glass-panel" style="padding: 1rem; display:flex; justify-content:space-between; align-items:center; border: 1px solid var(--border-color); border-radius: 12px;">
+            <h3 style="margin:0; font-size:1.1rem; display:flex; align-items:center; gap:8px;">🏠 Planta da Casa & Ambientes</h3>
+            <span style="font-size:0.75rem; color:var(--text-muted);">Clique nos cômodos para acessar</span>
+          </div>
 
-        <div class="room-card glass-panel clickable" data-modal="modal-leisure">
-          <span class="room-emoji">🎡</span>
-          <h3>Lazer e Diversão</h3>
-          <p>Entretenimento opcional e passeios em família.</p>
-        </div>
+          <div class="house-layout-grid" id="visual-house-grid">
+            
+            <div class="room-card glass-panel clickable" data-modal="modal-hall" id="room-card-hall">
+              <span class="room-emoji">🏠</span>
+              <h3>Sala da Família</h3>
+              <p>Mural de avisos, conselhos do tutor e regras da campanha.</p>
+            </div>
 
-        <div class="room-card glass-panel clickable" data-modal="modal-maintenance">
-          <span class="room-emoji">🛠️</span>
-          <h3>Consertos da Casa</h3>
-          <p>Efetuar reparos quando algum evento de quebra estiver ativo.</p>
-          <span id="badge-maintenance" class="badge-danger counter-badge" style="display:none;">🛠️</span>
-        </div>
+            <div class="room-card glass-panel clickable" data-modal="modal-chores" id="room-card-chores">
+              <span class="room-emoji">🧹</span>
+              <h3>Tarefas Domésticas</h3>
+              <p>Limpar, lavar louça e cozinhar. Energia: <strong id="val-player-energy">100%</strong></p>
+              <div class="room-status-indicator" id="room-cleanliness-indicator" style="font-size:0.75rem; margin-top:8px; font-weight:600;"></div>
+            </div>
 
-        <div class="room-card glass-panel clickable" data-modal="modal-pharmacy">
-          <span class="room-emoji">💊</span>
-          <h3>Farmácia</h3>
-          <p>Comprar remédios para curar doenças da família.</p>
-          <span id="badge-sick-family" class="badge-danger counter-badge" style="display:none;">🤒</span>
-        </div>
+            <div class="room-card glass-panel clickable" data-modal="modal-market" id="room-card-market">
+              <span class="room-emoji">🛒</span>
+              <h3>Supermercado</h3>
+              <p>Estoque da despensa de alimentos e material de limpeza.</p>
+              <div class="room-status-indicator" id="room-food-indicator" style="font-size:0.7rem; margin-top:8px; color:var(--text-muted); text-align:left; width:100%;"></div>
+            </div>
 
-        <div class="room-card glass-panel clickable" data-modal="modal-investments">
-          <span class="room-emoji">📈</span>
-          <h3>Investimentos</h3>
-          <p>Investir em Poupança, CDB, Fundo de ações ou Tesouro.</p>
-        </div>
+            <div class="room-card glass-panel clickable" data-modal="modal-bills" id="room-card-bills">
+              <span class="room-emoji">📋</span>
+              <h3>Contas a Pagar</h3>
+              <p>Liquidar faturas de energia, luz, água e internet.</p>
+              <span id="badge-unpaid-bills" class="badge-danger counter-badge" style="display:none;">0</span>
+            </div>
 
-        <div class="room-card glass-panel clickable" data-modal="modal-work">
-          <span class="room-emoji">💼</span>
-          <h3>Trabalho & Renda Extra</h3>
-          <p>Fazer bicos de renda extra e enviar propostas.</p>
-        </div>
+            <div class="room-card glass-panel clickable" data-modal="modal-maintenance" id="room-card-maintenance">
+              <span class="room-emoji">🛠️</span>
+              <h3>Consertos da Casa</h3>
+              <p>Consertar vazamentos ou quebras de aparelhos domésticos.</p>
+              <span id="badge-maintenance" class="badge-danger counter-badge" style="display:none;">🛠️</span>
+            </div>
 
-        <div class="room-card glass-panel clickable" data-modal="modal-reports">
-          <span class="room-emoji">📊</span>
-          <h3>Relatório & Evolução</h3>
-          <p>Visualizar evolução patrimonial e pontuação estimada.</p>
+            <div class="room-card glass-panel clickable" data-modal="modal-pharmacy" id="room-card-pharmacy">
+              <span class="room-emoji">💊</span>
+              <h3>Farmácia</h3>
+              <p>Comprar remédios para curar doenças de familiares.</p>
+              <span id="badge-sick-family" class="badge-danger counter-badge" style="display:none;">🤒</span>
+            </div>
+
+            <div class="room-card glass-panel clickable" data-modal="modal-bank" id="room-card-bank">
+              <span class="room-emoji">🏦</span>
+              <h3>Banco Virtual</h3>
+              <p>Empréstimos, reserva de emergência e histórico financeiro.</p>
+            </div>
+
+            <div class="room-card glass-panel clickable" data-modal="modal-investments" id="room-card-investments">
+              <span class="room-emoji">📈</span>
+              <h3>Investimentos</h3>
+              <p>Guardar dinheiro para render em Poupança, CDB ou Ações.</p>
+            </div>
+
+            <div class="room-card glass-panel clickable" data-modal="modal-work" id="room-card-work">
+              <span class="room-emoji">💼</span>
+              <h3>Trabalho & Bicos</h3>
+              <p>Realizar renda extra para aumentar o orçamento mensal.</p>
+            </div>
+
+            <div class="room-card glass-panel clickable" data-modal="modal-leisure" id="room-card-leisure">
+              <span class="room-emoji">🎡</span>
+              <h3>Lazer e Diversão</h3>
+              <p>Passeios e atividades em família para manter o bem-estar.</p>
+            </div>
+
+            <div class="room-card glass-panel clickable" data-modal="modal-reports" id="room-card-reports">
+              <span class="room-emoji">📊</span>
+              <h3>Relatório & Desempenho</h3>
+              <p>Histórico financeiro detalhado e gráficos de evolução.</p>
+            </div>
+
+          </div>
+
         </div>
 
       </div>
+
     </section>
 
     <!-- ==================== AMBIENTE DO ADMINISTRADOR ==================== -->
