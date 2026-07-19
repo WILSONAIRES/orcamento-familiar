@@ -735,7 +735,26 @@
         <button class="btn-close-modal">✕</button>
       </div>
       <div class="modal-body scrollable">
-        <p class="intro-p" style="margin-bottom:1.5rem;">Compre comida mensalmente para manter sua família saudável e feliz. **Se você não comprar nenhuma alimentação durante o mês, a saúde e felicidade despencam para 0%!**</p>
+        <p class="intro-p" style="margin-bottom:1rem;">Compre suprimentos para estocar a despensa da casa. **Comer diariamente (preparando refeições) é obrigatório para não adoecer ou passar fome!**</p>
+        
+        <div class="market-status glass-panel" style="padding: 1rem; margin-bottom: 1.5rem; display: flex; justify-content: space-around; background: rgba(255,255,255,0.03); border-radius: 8px;">
+          <div style="text-align:center;">
+            <span style="display:block; font-size:0.75rem; color:var(--text-muted);">Estoque Básico:</span>
+            <strong id="val-food-stock-basic" style="font-size:1.1rem; color:var(--text-light);">0 cargas</strong>
+          </div>
+          <div style="text-align:center;">
+            <span style="display:block; font-size:0.75rem; color:var(--text-muted);">Estoque Saudável:</span>
+            <strong id="val-food-stock-healthy" style="font-size:1.1rem; color:var(--success);">0 cargas</strong>
+          </div>
+          <div style="text-align:center;">
+            <span style="display:block; font-size:0.75rem; color:var(--text-muted);">Estoque Premium:</span>
+            <strong id="val-food-stock-premium" style="font-size:1.1rem; color:var(--primary);">0 cargas</strong>
+          </div>
+          <div style="text-align:center;">
+            <span style="display:block; font-size:0.75rem; color:var(--text-muted);">Kit Limpeza:</span>
+            <strong id="val-market-cleaning-products-stock" style="font-size:1.1rem; color:#c084fc;">0 cargas</strong>
+          </div>
+        </div>
         
         <div class="market-products" style="display: flex; flex-direction: column; gap: 1.2rem;">
           
@@ -983,9 +1002,23 @@
         <button class="btn-close-modal">✕</button>
       </div>
       <div class="modal-body scrollable">
-        <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color);">
-          <span style="font-weight: 500;">🛒 Saldo de Produtos de Limpeza:</span>
-          <strong id="val-cleaning-products-stock" style="font-size: 1.1rem; color: #c084fc;">0 cargas</strong>
+        <div class="chores-stock-panel" style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; margin-bottom: 1.5rem; display: flex; justify-content: space-between; gap: 1rem; border: 1px solid var(--border-color); flex-wrap: wrap;">
+          <div>
+            <span style="font-size: 0.85rem; color: var(--text-muted);">🧼 Produtos Limpeza:</span>
+            <strong id="val-cleaning-products-stock" style="color: #c084fc; margin-left: 5px;">0 cargas</strong>
+          </div>
+          <div>
+            <span style="font-size: 0.85rem; color: var(--text-muted);">🥫 Ingredientes Básicos:</span>
+            <strong id="val-chores-food-basic" style="color: var(--text-light); margin-left: 5px;">0 cargas</strong>
+          </div>
+          <div>
+            <span style="font-size: 0.85rem; color: var(--text-muted);">🥗 Ingredientes Saudáveis:</span>
+            <strong id="val-chores-food-healthy" style="color: var(--success); margin-left: 5px;">0 cargas</strong>
+          </div>
+          <div>
+            <span style="font-size: 0.85rem; color: var(--text-muted);">🥑 Ingredientes Premium:</span>
+            <strong id="val-chores-food-premium" style="color: var(--primary); margin-left: 5px;">0 cargas</strong>
+          </div>
         </div>
         <p class="intro-p">Realizar tarefas físicas consome energia física e 1 carga de produtos de limpeza, mas aumenta a higiene doméstica e a saúde dos familiares sem custo financeiro.</p>
         <div id="chores-container" class="chores-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem;">

@@ -102,7 +102,10 @@ function mapParticipantFromDb(row) {
     day: row.day,
     tasksCompletedToday: row.taskscompletedtoday,
     ateToday: row.atetoday,
-    lastDayTransitionDate: row.lastdaytransitiondate
+    lastDayTransitionDate: row.lastdaytransitiondate,
+    foodStockBasic: row.foodstockbasic,
+    foodStockHealthy: row.foodstockhealthy,
+    foodStockPremium: row.foodstockpremium
   };
 }
 
@@ -137,7 +140,10 @@ function mapParticipantToDb(p) {
     day: p.day,
     taskscompletedtoday: p.tasksCompletedToday,
     atetoday: p.ateToday,
-    lastdaytransitiondate: p.lastDayTransitionDate
+    lastdaytransitiondate: p.lastDayTransitionDate,
+    foodstockbasic: p.foodStockBasic,
+    foodstockhealthy: p.foodStockHealthy,
+    foodstockpremium: p.foodStockPremium
   };
 }
 

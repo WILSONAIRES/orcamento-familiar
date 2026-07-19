@@ -487,6 +487,11 @@ async function renderModalContent(modalId) {
       document.getElementById('val-price-food-basic').textContent = `R$ ${Math.round(150 * sizeMult * diff.costMultiplier).toFixed(2)}`;
       document.getElementById('val-price-food-healthy').textContent = `R$ ${Math.round(300 * sizeMult * diff.costMultiplier).toFixed(2)}`;
       document.getElementById('val-price-food-premium').textContent = `R$ ${Math.round(500 * sizeMult * diff.costMultiplier).toFixed(2)}`;
+      
+      document.getElementById('val-food-stock-basic').textContent = `${p.foodStockBasic || 0} cargas`;
+      document.getElementById('val-food-stock-healthy').textContent = `${p.foodStockHealthy !== undefined ? p.foodStockHealthy : 5} cargas`;
+      document.getElementById('val-food-stock-premium').textContent = `${p.foodStockPremium || 0} cargas`;
+      document.getElementById('val-market-cleaning-products-stock').textContent = `${p.cleaningProductsStock || 0} cargas`;
       break;
     }
 
@@ -730,6 +735,18 @@ async function renderModalContent(modalId) {
       if (valCleaningStock) {
         valCleaningStock.textContent = `${p.cleaningProductsStock || 0} cargas`;
       }
+      const valChoresBasic = document.getElementById('val-chores-food-basic');
+      if (valChoresBasic) {
+        valChoresBasic.textContent = `${p.foodStockBasic || 0} cargas`;
+      }
+      const valChoresHealthy = document.getElementById('val-chores-food-healthy');
+      if (valChoresHealthy) {
+        valChoresHealthy.textContent = `${p.foodStockHealthy !== undefined ? p.foodStockHealthy : 5} cargas`;
+      }
+      const valChoresPremium = document.getElementById('val-chores-food-premium');
+      if (valChoresPremium) {
+        valChoresPremium.textContent = `${p.foodStockPremium || 0} cargas`;
+      }
 
       DEFAULT_TASKS.forEach(task => {
         const card = document.createElement('div');
@@ -752,6 +769,9 @@ async function renderModalContent(modalId) {
               ${impactsHtml.join('')}
               <span style="display:block; color:var(--text-muted); font-size:0.75rem;">Energia necessária: <strong>${task.energyCost}%</strong></span>
               <span style="display:block; color:var(--text-muted); font-size:0.75rem;">Material de limpeza: <strong>${task.requiresCleaningProduct ? '1 carga' : 'Não consome'}</strong></span>
+              ${task.id.startsWith('prepare_meals') ? `
+                <span style="display:block; color:var(--text-muted); font-size:0.75rem;">Ingredientes exigidos: <strong>1 carga (${task.id === 'prepare_meals_quick' ? 'Básicos' : task.id === 'prepare_meals' ? 'Saudáveis' : 'Premium'})</strong></span>
+              ` : ''}
             </div>
           </div>
           <div class="price-action" style="margin-top: 15px;">

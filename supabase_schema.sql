@@ -69,7 +69,10 @@ CREATE TABLE IF NOT EXISTS participants (
     day INTEGER DEFAULT 1,
     tasksCompletedToday JSONB DEFAULT '[]'::jsonb,
     ateToday BOOLEAN DEFAULT FALSE,
-    lastDayTransitionDate TEXT
+    lastDayTransitionDate TEXT,
+    foodStockBasic INTEGER DEFAULT 0,
+    foodStockHealthy INTEGER DEFAULT 5,
+    foodStockPremium INTEGER DEFAULT 0
 );
 
 -- 4. Tabela de Histórico (Snapshots Mensais)

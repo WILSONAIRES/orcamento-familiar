@@ -308,6 +308,9 @@ app.post('/api/auth/complete-profile', authenticateToken, async (req, res) => {
       tasksCompletedThisWeek: [], extraIncomeCompletedThisWeek: [], customExtraIncomePending: [],
       goalsStatus: {}, boughtFoodThisMonth: false,
       cleaningProductsStock: 5, // Inicia com 5 cargas de produtos de limpeza
+      foodStockBasic: 0,
+      foodStockHealthy: 5, // Começa com 5 cargas de alimentos saudáveis
+      foodStockPremium: 0,
       notifications: [{ type: 'info', text: 'Você ativou sua conta com o Google! Seu saldo inicial conta com o salário cheio do mês.' }]
     };
 
@@ -475,6 +478,9 @@ app.post('/api/auth/register', async (req, res) => {
         goalsStatus: {},
         boughtFoodThisMonth: false, // Inicia sem comprar comida
         cleaningProductsStock: 5, // Começa com 5 cargas de material de limpeza
+        foodStockBasic: 0,
+        foodStockHealthy: 5, // Inicia com 5 cargas de alimentos saudáveis
+        foodStockPremium: 0,
         notifications: [{ type: 'info', text: 'Você iniciou a simulação! Seu saldo inicial conta com o salário cheio do mês.' }]
       };
 
@@ -646,6 +652,9 @@ app.get('/api/participant/:id', authenticateToken, async (req, res) => {
         part.lastDayTransitionDate = part.lastDayTransitionDate || todayStr;
         part.tasksCompletedToday = part.tasksCompletedToday || [];
         part.ateToday = part.ateToday || false;
+        part.foodStockBasic = part.foodStockBasic !== undefined ? part.foodStockBasic : 0;
+        part.foodStockHealthy = part.foodStockHealthy !== undefined ? part.foodStockHealthy : 5;
+        part.foodStockPremium = part.foodStockPremium !== undefined ? part.foodStockPremium : 0;
 
         if (part.lastDayTransitionDate !== todayStr) {
           if (part.day < 30) {
@@ -827,6 +836,27 @@ app.post('/api/participant/:id/execute-task', authenticateToken, async (req, res
         return res.status(400).json({ message: 'Você não tem produtos de limpeza em estoque! Compre um kit no Supermercado.' });
       }
       p.cleaningProductsStock -= 1;
+    }
+
+    // Verificar e deduzir estoque de ingredientes de comida (se for tarefa de cozinhar)
+    if (taskId === 'prepare_meals_quick') {
+      p.foodStockBasic = p.foodStockBasic !== undefined ? p.foodStockBasic : 0;
+      if (p.foodStockBasic <= 0) {
+        return res.status(400).json({ message: 'Você não tem ingredientes básicos na despensa! Compre no Supermercado.' });
+      }
+      p.foodStockBasic -= 1;
+    } else if (taskId === 'prepare_meals') {
+      p.foodStockHealthy = p.foodStockHealthy !== undefined ? p.foodStockHealthy : 5;
+      if (p.foodStockHealthy <= 0) {
+        return res.status(400).json({ message: 'Você não tem ingredientes saudáveis na despensa! Compre no Supermercado.' });
+      }
+      p.foodStockHealthy -= 1;
+    } else if (taskId === 'prepare_meals_feast') {
+      p.foodStockPremium = p.foodStockPremium !== undefined ? p.foodStockPremium : 0;
+      if (p.foodStockPremium <= 0) {
+        return res.status(400).json({ message: 'Você não tem ingredientes premium na despensa! Compre no Supermercado.' });
+      }
+      p.foodStockPremium -= 1;
     }
 
     // Debitar energia
@@ -1241,13 +1271,19 @@ app.post('/api/participant/:id/market-food', authenticateToken, async (req, res)
     if (p.balance < cost) return res.status(400).json({ message: 'Saldo insuficiente.' });
 
     p.balance -= cost;
-    p.indicators.health = Math.max(0, Math.min(100, p.indicators.health + healthImpact));
-    p.indicators.happiness = Math.max(0, Math.min(100, p.indicators.happiness + happinessImpact));
     
+    // Adicionar +5 cargas de alimentos na despensa do participante
+    if (option === 'basic') {
+      p.foodStockBasic = (p.foodStockBasic || 0) + 5;
+    } else if (option === 'healthy') {
+      p.foodStockHealthy = (p.foodStockHealthy !== undefined ? p.foodStockHealthy : 5) + 5;
+    } else if (option === 'premium') {
+      p.foodStockPremium = (p.foodStockPremium || 0) + 5;
+    }
+
     // Grava compra de comida
     p.boughtFoodThisMonth = true; 
-    p.ateToday = true;
-    p.notifications.unshift({ type: 'success', text: `Compra de alimentação '${name}' efetuada por R$ ${cost}. Família alimentada!` });
+    p.notifications.unshift({ type: 'success', text: `Compra de '${name}' efetuada por R$ ${cost}. +5 cargas de ingredientes adicionadas à despensa!` });
 
     await db.saveParticipant(p);
     res.json({ success: true, message: 'Comida comprada!' });
@@ -1269,6 +1305,9 @@ app.post('/api/participant/:id/next-day', authenticateToken, async (req, res) =>
     p.tasksCompletedToday = p.tasksCompletedToday || [];
     p.ateToday = p.ateToday || false;
     p.cleaningProductsStock = p.cleaningProductsStock !== undefined ? p.cleaningProductsStock : 5;
+    p.foodStockBasic = p.foodStockBasic !== undefined ? p.foodStockBasic : 0;
+    p.foodStockHealthy = p.foodStockHealthy !== undefined ? p.foodStockHealthy : 5;
+    p.foodStockPremium = p.foodStockPremium !== undefined ? p.foodStockPremium : 0;
 
     // Se o dia do participante for >= 30, ele não pode avançar o dia sozinho. Ele deve esperar a virada do mês pelo admin!
     if (p.day >= 30) {
@@ -1704,10 +1743,21 @@ async function advanceParticipantWeekLogic(pId, adminName) {
 function activeCampaignBillsSeed(p, campaign, sizeMult, costMult) {
   campaign.accountsConfig.forEach(cfg => {
     if (cfg.enabled) {
-      const val = cfg.minVal + Math.random() * (cfg.maxVal - cfg.minVal);
+      let val = cfg.minVal + Math.random() * (cfg.maxVal - cfg.minVal);
+      let calculatedValue = Math.round(val * sizeMult * costMult);
+
+      // Penalidade de Vazamento de Água (pipe_leak): Dobra a conta de água do próximo ciclo!
+      if (cfg.id === 'agua' && p.activeEvents && p.activeEvents.some(e => e.id === 'pipe_leak')) {
+        calculatedValue = Math.round(calculatedValue * 2.5); // Aumenta em 2.5x!
+        p.notifications.unshift({
+          type: 'danger',
+          text: '🚨 PENALIDADE: Conta de água veio 2.5x mais alta devido ao vazamento não consertado no banheiro!'
+        });
+      }
+
       p.unpaidBills.push({
         id: 'bill_' + cfg.id + '_' + p.week + '_' + Math.random().toString(36).substr(2, 4),
-        type: cfg.id, name: cfg.name, value: Math.round(val * sizeMult * costMult), dueWeek: p.week
+        type: cfg.id, name: cfg.name, value: calculatedValue, dueWeek: p.week
       });
     }
   });
