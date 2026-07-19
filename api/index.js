@@ -680,6 +680,51 @@ app.get('/api/participant/:id', authenticateToken, async (req, res) => {
               logs.push('⚠️ A família ficou com FOME hoje! Saúde e Felicidade desceram para o nível mais baixo (10%)!');
             }
 
+            // 4. Consequências de Limpeza Baixa (Quebras Estruturais)
+            if (part.indicators.cleanliness < 40) {
+              if (Math.random() < 0.20) {
+                const breakdownTemplates = [
+                  { id: 'pipe_leak', name: 'Vazamento no Banheiro', repairCost: 300, description: 'Um cano estourou na parede do banheiro, molhando a casa e exigindo encanador de emergência.' },
+                  { id: 'fridge_repair', name: 'Geladeira Queimou', repairCost: 450, description: 'A geladeira parou de funcionar e os alimentos correm risco de estragar. Conserto imediato necessário.' }
+                ];
+                const choice = breakdownTemplates[Math.floor(Math.random() * breakdownTemplates.length)];
+                if (!part.activeEvents.some(e => e.id === choice.id)) {
+                  part.activeEvents.push({
+                    id: choice.id,
+                    name: choice.name,
+                    description: choice.description,
+                    impact: 0,
+                    tip: 'Problemas na estrutura da casa reduzem a limpeza e o bem-estar da família. Resolva-os o quanto antes!',
+                    weekTriggered: part.week,
+                    isBreakdown: true,
+                    repairCost: choice.repairCost
+                  });
+                  part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 10);
+                  part.indicators.happiness = Math.max(0, part.indicators.happiness - 5);
+                  logs.push(`🔧 Ocorreu um '${choice.name}' devido à falta de limpeza! Chame manutenção.`);
+                }
+              }
+            }
+
+            // 5. Consequências de Saúde/Felicidade Baixa (Doenças)
+            if (part.indicators.health < 40 || part.indicators.happiness < 40) {
+              if (Math.random() < 0.25) {
+                const diseaseTemplates = [
+                  { id: 'gripe', name: 'Gripe Comum', description: 'Febre baixa, coriza e dor no corpo. Exige repouso e antitérmico.', requiredMedicine: 'Antitérmico e Vitamina C', medicineCost: 45, recoveryWeeks: 1, healthImpact: -15, happinessImpact: -10 },
+                  { id: 'infeccao_intestinal', name: 'Infecção Intestinal', description: 'Causada por alimentação inadequada ou falta de higiene na cozinha.', requiredMedicine: 'Antibiótico e Soro de Reidratação', medicineCost: 80, recoveryWeeks: 1, healthImpact: -25, happinessImpact: -15 },
+                  { id: 'estresse_extremo', name: 'Cansaço Extremo / Estresse', description: 'Esgotamento físico e mental devido a excesso de preocupação financeira.', requiredMedicine: 'Polivitamínico e Lazer', medicineCost: 60, recoveryWeeks: 2, healthImpact: -20, happinessImpact: -25 },
+                  { id: 'alergia_pele', name: 'Alergia de Pele', description: 'Reação alérgica causada por poeira ou acúmulo de sujeira na residência.', requiredMedicine: 'Pomada Antialérgica', medicineCost: 35, recoveryWeeks: 1, healthImpact: -10, happinessImpact: -8 }
+                ];
+                const choice = diseaseTemplates[Math.floor(Math.random() * diseaseTemplates.length)];
+                if (!part.activeIllnesses.some(i => i.id === choice.id)) {
+                  part.activeIllnesses.push({ ...choice });
+                  part.indicators.health = Math.max(0, part.indicators.health + choice.healthImpact);
+                  part.indicators.happiness = Math.max(0, part.indicators.happiness + choice.happinessImpact);
+                  logs.push(`🤒 Um membro da família contraiu '${choice.name}' por baixa saúde/felicidade! Compre remédios na Farmácia.`);
+                }
+              }
+            }
+
             part.day += 1;
             part.tasksCompletedToday = [];
             part.ateToday = false;
@@ -1255,6 +1300,51 @@ app.post('/api/participant/:id/next-day', authenticateToken, async (req, res) =>
       p.indicators.health = 10; // Nível mais baixo
       p.indicators.happiness = 10; // Nível mais baixo
       logs.push('⚠️ A família ficou com FOME hoje! Saúde e Felicidade despencaram para o nível mais baixo (10%)!');
+    }
+
+    // 4. Consequências de Limpeza Baixa (Quebras Estruturais)
+    if (p.indicators.cleanliness < 40) {
+      if (Math.random() < 0.20) {
+        const breakdownTemplates = [
+          { id: 'pipe_leak', name: 'Vazamento no Banheiro', repairCost: 300, description: 'Um cano estourou na parede do banheiro, molhando a casa e exigindo encanador de emergência.' },
+          { id: 'fridge_repair', name: 'Geladeira Queimou', repairCost: 450, description: 'A geladeira parou de funcionar e os alimentos correm risco de estragar. Conserto imediato necessário.' }
+        ];
+        const choice = breakdownTemplates[Math.floor(Math.random() * breakdownTemplates.length)];
+        if (!p.activeEvents.some(e => e.id === choice.id)) {
+          p.activeEvents.push({
+            id: choice.id,
+            name: choice.name,
+            description: choice.description,
+            impact: 0,
+            tip: 'Problemas na estrutura da casa reduzem a limpeza e o bem-estar da família. Resolva-os o quanto antes!',
+            weekTriggered: p.week,
+            isBreakdown: true,
+            repairCost: choice.repairCost
+          });
+          p.indicators.cleanliness = Math.max(0, p.indicators.cleanliness - 10);
+          p.indicators.happiness = Math.max(0, p.indicators.happiness - 5);
+          logs.push(`🔧 Ocorreu um '${choice.name}' devido à falta de limpeza! Chame manutenção.`);
+        }
+      }
+    }
+
+    // 5. Consequências de Saúde/Felicidade Baixa (Doenças)
+    if (p.indicators.health < 40 || p.indicators.happiness < 40) {
+      if (Math.random() < 0.25) {
+        const diseaseTemplates = [
+          { id: 'gripe', name: 'Gripe Comum', description: 'Febre baixa, coriza e dor no corpo. Exige repouso e antitérmico.', requiredMedicine: 'Antitérmico e Vitamina C', medicineCost: 45, recoveryWeeks: 1, healthImpact: -15, happinessImpact: -10 },
+          { id: 'infeccao_intestinal', name: 'Infecção Intestinal', description: 'Causada por alimentação inadequada ou falta de higiene na cozinha.', requiredMedicine: 'Antibiótico e Soro de Reidratação', medicineCost: 80, recoveryWeeks: 1, healthImpact: -25, happinessImpact: -15 },
+          { id: 'estresse_extremo', name: 'Cansaço Extremo / Estresse', description: 'Esgotamento físico e mental devido a excesso de preocupação financeira.', requiredMedicine: 'Polivitamínico e Lazer', medicineCost: 60, recoveryWeeks: 2, healthImpact: -20, happinessImpact: -25 },
+          { id: 'alergia_pele', name: 'Alergia de Pele', description: 'Reação alérgica causada por poeira ou acúmulo de sujeira na residência.', requiredMedicine: 'Pomada Antialérgica', medicineCost: 35, recoveryWeeks: 1, healthImpact: -10, happinessImpact: -8 }
+        ];
+        const choice = diseaseTemplates[Math.floor(Math.random() * diseaseTemplates.length)];
+        if (!p.activeIllnesses.some(i => i.id === choice.id)) {
+          p.activeIllnesses.push({ ...choice });
+          p.indicators.health = Math.max(0, p.indicators.health + choice.healthImpact);
+          p.indicators.happiness = Math.max(0, p.indicators.happiness + choice.happinessImpact);
+          logs.push(`🤒 Um membro da família contraiu '${choice.name}' por baixa saúde/felicidade! Compre remédios na Farmácia.`);
+        }
+      }
     }
 
     // Incrementar dia
