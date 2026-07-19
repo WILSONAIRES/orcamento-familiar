@@ -94,3 +94,23 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS idx_participants_user ON participants(userId);
 CREATE INDEX IF NOT EXISTS idx_history_participant ON history(participantId);
 CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_logs(timestamp);
+
+-- 6. Inserir Campanha Padrão Ativa
+INSERT INTO campaigns (
+    id, name, difficulty, durationWeeks, familyTypeId, salaryType, fixedSalary, minSalary, maxSalary,
+    cycleTransitionDay, lastCycleAdvanceDate, expensesPercentages, accountsConfig, lateFee, interestRate, cutoffDays,
+    loanConfig, investmentsEnabled, weights, rankingEnabled, goals, active
+) VALUES (
+    'camp_2026', 'Especialidade Orçamento 2026', 'medio', 12, 'padrao', 'fixed', 2500, 2000, 3000,
+    'Domingo', '', 
+    '{"alimentacao": 25, "moradia": 25, "transporte": 10, "saude": 10, "higiene": 5, "educacao": 10, "lazer": 10}',
+    '[{"id": "agua", "name": "Conta de Água", "enabled": true, "minVal": 50, "maxVal": 90}, {"id": "luz", "name": "Conta de Luz", "enabled": true, "minVal": 120, "maxVal": 200}, {"id": "internet", "name": "Internet Banda Larga", "enabled": true, "minVal": 90, "maxVal": 110}, {"id": "gas", "name": "Gás de Cozinha", "enabled": true, "minVal": 110, "maxVal": 130}, {"id": "aluguel", "name": "Aluguel Residencial", "enabled": true, "minVal": 700, "maxVal": 800}]',
+    2.0, 1.0, 
+    '{"luz": 15, "internet": 10, "agua": 20}',
+    '{"minRate": 3, "maxRate": 8, "minTerm": 3, "maxTerm": 12, "minVal": 200, "maxVal": 4000, "requireApproval": true}',
+    '["poupanca", "cdb", "tesouro_direto", "fundo_acoes"]',
+    '{"health": 30, "happiness": 30, "finance": 25, "cleanliness": 15}', 
+    1,
+    '[{"id": "goal_reserve", "name": "Criar Reserva de Emergência", "description": "Guardar pelo menos R$ 500 na poupança ou CDB", "targetField": "reserve", "targetValue": 500}, {"id": "goal_no_overdue", "name": "Nome Limpo", "description": "Terminar o ciclo sem nenhuma conta em atraso", "targetField": "overdueBillsCount", "targetValue": 0}]',
+    1
+) ON CONFLICT (id) DO NOTHING;
