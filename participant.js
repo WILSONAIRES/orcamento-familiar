@@ -736,7 +736,11 @@ async function renderModalContent(modalId) {
         card.className = 'chore-item-card';
 
         let impactsHtml = [];
-        if (task.cleanlinessImpact) impactsHtml.push(`<span class="blue-text">🧹 Limpeza: +${task.cleanlinessImpact}%</span>`);
+        if (task.cleanlinessImpact) {
+          const sign = task.cleanlinessImpact > 0 ? '+' : '';
+          const colorClass = task.cleanlinessImpact > 0 ? 'blue-text' : 'red-text';
+          impactsHtml.push(`<span class="${colorClass}">🧹 Limpeza: ${sign}${task.cleanlinessImpact}%</span>`);
+        }
         if (task.healthImpact) impactsHtml.push(`<span class="red-text">❤️ Saúde: +${task.healthImpact}%</span>`);
         impactsHtml.push(`<span class="red-text" style="color:var(--danger);">😊 Felicidade: -3% (Trabalho)</span>`);
 
@@ -747,7 +751,7 @@ async function renderModalContent(modalId) {
             <div class="chore-impacts-list" style="margin-top: 10px;">
               ${impactsHtml.join('')}
               <span style="display:block; color:var(--text-muted); font-size:0.75rem;">Energia necessária: <strong>${task.energyCost}%</strong></span>
-              <span style="display:block; color:var(--text-muted); font-size:0.75rem;">Material de limpeza: <strong>1 carga</strong></span>
+              <span style="display:block; color:var(--text-muted); font-size:0.75rem;">Material de limpeza: <strong>${task.requiresCleaningProduct ? '1 carga' : 'Não consome'}</strong></span>
             </div>
           </div>
           <div class="price-action" style="margin-top: 15px;">

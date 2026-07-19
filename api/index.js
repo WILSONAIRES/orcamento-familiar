@@ -821,19 +821,21 @@ app.post('/api/participant/:id/execute-task', authenticateToken, async (req, res
       return res.status(400).json({ message: 'Você não tem energia suficiente para realizar esta tarefa.' });
     }
 
-    // Verificar se possui produtos de limpeza em estoque
-    if (!p.cleaningProductsStock || p.cleaningProductsStock <= 0) {
-      return res.status(400).json({ message: 'Você não tem produtos de limpeza em estoque! Compre um kit no Supermercado.' });
+    // Verificar se possui produtos de limpeza em estoque (se a tarefa exigir)
+    if (task.requiresCleaningProduct) {
+      if (!p.cleaningProductsStock || p.cleaningProductsStock <= 0) {
+        return res.status(400).json({ message: 'Você não tem produtos de limpeza em estoque! Compre um kit no Supermercado.' });
+      }
+      p.cleaningProductsStock -= 1;
     }
 
-    // Debitar energia e produto de limpeza
+    // Debitar energia
     p.energy -= task.energyCost;
-    p.cleaningProductsStock -= 1;
     
     // Novas regras: Aumenta saúde e limpeza, mas diminui um pouco a felicidade
     const happinessDecrease = 3; // Reduz em 3% flat
-    p.indicators.cleanliness = Math.min(100, p.indicators.cleanliness + task.cleanlinessImpact);
-    p.indicators.health = Math.min(100, p.indicators.health + task.healthImpact);
+    p.indicators.cleanliness = Math.min(100, Math.max(0, p.indicators.cleanliness + task.cleanlinessImpact));
+    p.indicators.health = Math.min(100, Math.max(0, p.indicators.health + task.healthImpact));
     p.indicators.happiness = Math.max(0, p.indicators.happiness - happinessDecrease);
 
     p.tasksCompletedThisWeek.push(taskId);
@@ -841,12 +843,14 @@ app.post('/api/participant/:id/execute-task', authenticateToken, async (req, res
     if (!p.tasksCompletedToday.includes(taskId)) {
       p.tasksCompletedToday.push(taskId);
     }
-    if (taskId === 'prepare_meals') {
+    if (taskId.startsWith('prepare_meals')) {
       p.ateToday = true;
     }
+    
+    const cleaningUsageText = task.requiresCleaningProduct ? 'Gasta 1 carga de produtos de limpeza.' : 'Não consome material de limpeza.';
     p.notifications.unshift({ 
       type: 'info', 
-      text: `Tarefa concluída: '${task.name}'. Gasta 1 carga de produtos de limpeza. Energia: -${task.energyCost}%. Felicidade: -${happinessDecrease}%.` 
+      text: `Tarefa concluída: '${task.name}'. ${cleaningUsageText} Energia: -${task.energyCost}%. Felicidade: -${happinessDecrease}%.` 
     });
 
     await db.saveParticipant(p);

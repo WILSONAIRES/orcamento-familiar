@@ -249,8 +249,9 @@ export const DEFAULT_TASKS = [
     cleanlinessImpact: 15,
     healthImpact: 2,
     happinessImpact: 4,
-    energyCost: 15, // Porcentagem de energia do participante por clique/ação
-    cost: 15 // Custo de produtos de limpeza
+    energyCost: 15,
+    cost: 15,
+    requiresCleaningProduct: true
   },
   {
     id: "wash_dishes",
@@ -261,7 +262,8 @@ export const DEFAULT_TASKS = [
     healthImpact: 1,
     happinessImpact: 2,
     energyCost: 8,
-    cost: 5
+    cost: 5,
+    requiresCleaningProduct: true
   },
   {
     id: "wash_clothes",
@@ -272,7 +274,8 @@ export const DEFAULT_TASKS = [
     healthImpact: 0,
     happinessImpact: 5,
     energyCost: 12,
-    cost: 20
+    cost: 20,
+    requiresCleaningProduct: true
   },
   {
     id: "exercise",
@@ -283,29 +286,56 @@ export const DEFAULT_TASKS = [
     healthImpact: 12,
     happinessImpact: 8,
     energyCost: 15,
-    cost: 0
+    cost: 0,
+    requiresCleaningProduct: false
   },
   {
     id: "family_leisure",
     name: "Momento de Lazer em Família",
     description: "Assistir a um filme, jogar jogos de tabuleiro ou fazer um piquenique.",
     frequency: "Semanal",
-    cleanlinessImpact: -2, // Bagunça um pouco a sala
+    cleanlinessImpact: -2,
     healthImpact: 2,
     happinessImpact: 18,
     energyCost: 10,
-    cost: 30 // Custo do lanche ou atividade
+    cost: 30,
+    requiresCleaningProduct: false
+  },
+  {
+    id: "prepare_meals_quick",
+    name: "Cozinhar Refeição Rápida",
+    description: "Preparar uma refeição rápida e simples (massa ou arroz). Prático, mas nutrição moderada.",
+    frequency: "Diária",
+    cleanlinessImpact: -2,
+    healthImpact: 4,
+    happinessImpact: -1,
+    energyCost: 5,
+    cost: 10,
+    requiresCleaningProduct: false
   },
   {
     id: "prepare_meals",
     name: "Preparar Refeições Saudáveis",
-    description: "Cozinhar comida caseira e saudável em vez de comprar comida pronta ou ultraprocessados.",
+    description: "Cozinhar comida caseira equilibrada e fresca (grelhados, legumes). Boa nutrição.",
     frequency: "Diária",
-    cleanlinessImpact: -4, // Suja panelas
+    cleanlinessImpact: -4,
     healthImpact: 10,
-    happinessImpact: 6,
+    happinessImpact: -3,
     energyCost: 10,
-    cost: 25 // Custo dos ingredientes frescos
+    cost: 25,
+    requiresCleaningProduct: false
+  },
+  {
+    id: "prepare_meals_feast",
+    name: "Cozinhar Banquete Completo",
+    description: "Preparar uma refeição festiva completa (feijoada ou assado). Requer dedicação, mas gera alta nutrição e alegria.",
+    frequency: "Diária",
+    cleanlinessImpact: -8,
+    healthImpact: 15,
+    happinessImpact: 5,
+    energyCost: 18,
+    cost: 45,
+    requiresCleaningProduct: false
   }
 ];
 
