@@ -224,7 +224,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (profileSelector) profileSelector.value = 'admin';
       if (activeParticipantGroup) activeParticipantGroup.style.display = 'none';
 
-      initAdminView();
       await refreshAdminTab('admin-dashboard');
     } else {
       // 2. Mostrar ambiente do participante comum
@@ -234,8 +233,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Esconder seletores administrativos
       if (profileSelGroup) profileSelGroup.style.display = 'none';
       if (activeParticipantGroup) activeParticipantGroup.style.display = 'none';
-
-      initParticipantView();
 
       // Travar seletor no participante logado
       if (participantSelector) {
@@ -250,6 +247,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   function pId() {
     return engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
   }
+
+  // --- INICIALIZAR EVENT LISTENERS DE CONTROLES E MODAIS ---
+  initParticipantView();
+  initAdminView();
 
   // --- CONTROLE DE CARGA INICIAL ---
   if (engine.isAuthenticated()) {
