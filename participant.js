@@ -664,6 +664,12 @@ async function renderModalContent(modalId) {
 
     // 7. CONTAS A PAGAR
     case 'modal-bills': {
+      // Atualizar exibição de saldo bancário na tela de contas
+      const billsBalanceEl = document.getElementById('val-bills-bank-balance');
+      if (billsBalanceEl) {
+        billsBalanceEl.textContent = `R$ ${p.balance.toFixed(2)}`;
+      }
+
       // A. Contas A Vencer
       const unpaidContainer = document.getElementById('unpaid-bills-container');
       unpaidContainer.innerHTML = '';
@@ -674,14 +680,28 @@ async function renderModalContent(modalId) {
         p.unpaidBills.forEach(bill => {
           const item = document.createElement('div');
           item.className = 'bill-card-item';
+          
+          const hasFunds = p.balance >= bill.value;
+          const balanceAfter = p.balance - bill.value;
+          
+          let projectionHtml = '';
+          if (hasFunds) {
+            projectionHtml = `<span style="display:block; font-size:0.7rem; color:var(--success); margin-top:4px;">✔️ Saldo após pago: R$ ${balanceAfter.toFixed(2)}</span>`;
+          } else {
+            projectionHtml = `<span style="display:block; font-size:0.7rem; color:var(--danger); margin-top:4px;">❌ Saldo insuficiente (Faltam R$ ${Math.abs(balanceAfter).toFixed(2)})</span>`;
+          }
+
           item.innerHTML = `
             <div class="bill-item-details">
               <h4>${bill.name}</h4>
               <span>Vencimento: Final do Mês ${bill.dueWeek}</span>
+              ${projectionHtml}
             </div>
             <div class="bill-item-action">
               <span class="value">R$ ${bill.value.toFixed(2)}</span>
-              <button class="btn-primary btn-small btn-pay-bill" data-id="${bill.id}" data-overdue="false">Pagar Fatura</button>
+              <button class="btn-primary btn-small btn-pay-bill" data-id="${bill.id}" data-overdue="false" ${!hasFunds ? 'disabled="true" style="opacity:0.5; cursor:not-allowed; background:var(--text-muted);"' : ''}>
+                ${hasFunds ? 'Pagar Fatura' : 'Saldo Insuficiente'}
+              </button>
             </div>
           `;
           unpaidContainer.appendChild(item);
@@ -701,14 +721,27 @@ async function renderModalContent(modalId) {
           item.style.borderLeft = '4px solid var(--danger)';
           
           const val = bill.totalValue || bill.value;
+          const hasFunds = p.balance >= val;
+          const balanceAfter = p.balance - val;
+
+          let projectionHtml = '';
+          if (hasFunds) {
+            projectionHtml = `<span style="display:block; font-size:0.7rem; color:var(--success); margin-top:4px;">✔️ Saldo após pago: R$ ${balanceAfter.toFixed(2)}</span>`;
+          } else {
+            projectionHtml = `<span style="display:block; font-size:0.7rem; color:var(--danger); margin-top:4px;">❌ Saldo insuficiente (Faltam R$ ${Math.abs(balanceAfter).toFixed(2)})</span>`;
+          }
+
           item.innerHTML = `
             <div class="bill-item-details">
               <h4 class="red-text">${bill.name}</h4>
               <span>Original: R$ ${bill.value.toFixed(2)} | Multa: R$ ${bill.fineApplied.toFixed(2)} | Juros: R$ ${bill.interestApplied.toFixed(2)}</span>
+              ${projectionHtml}
             </div>
             <div class="bill-item-action">
               <span class="value red-text">R$ ${val.toFixed(2)}</span>
-              <button class="btn-danger btn-small btn-pay-bill" data-id="${bill.id}" data-overdue="true">Pagar com Juros</button>
+              <button class="btn-danger btn-small btn-pay-bill" data-id="${bill.id}" data-overdue="true" ${!hasFunds ? 'disabled="true" style="opacity:0.5; cursor:not-allowed; background:var(--text-muted);"' : ''}>
+                ${hasFunds ? 'Pagar com Juros' : 'Saldo Insuficiente'}
+              </button>
             </div>
           `;
           overdueContainer.appendChild(item);
@@ -765,6 +798,32 @@ async function renderModalContent(modalId) {
         if (task.healthImpact) impactsHtml.push(`<span class="red-text">❤️ Saúde: +${task.healthImpact}%</span>`);
         impactsHtml.push(`<span class="red-text" style="color:var(--danger);">😊 Felicidade: -3% (Trabalho)</span>`);
 
+        let isBtnDisabled = false;
+        let btnText = 'Realizar Tarefa';
+        let warningText = '';
+
+        // Verificar Estoque de Limpeza
+        if (task.requiresCleaningProduct && (p.cleaningProductsStock || 0) <= 0) {
+          isBtnDisabled = true;
+          btnText = 'Falta Material';
+          warningText = '<span style="display:block; color:var(--danger); font-size:0.7rem; font-weight:bold; margin-top:5px;">⚠️ Requer kit de limpeza!</span>';
+        }
+
+        // Verificar Estoque de Comida
+        if (task.id === 'prepare_meals_quick' && (p.foodStockBasic || 0) <= 0) {
+          isBtnDisabled = true;
+          btnText = 'Sem Ingredientes';
+          warningText = '<span style="display:block; color:var(--danger); font-size:0.7rem; font-weight:bold; margin-top:5px;">⚠️ Requer Ingredientes Básicos!</span>';
+        } else if (task.id === 'prepare_meals' && (p.foodStockHealthy !== undefined ? p.foodStockHealthy : 5) <= 0) {
+          isBtnDisabled = true;
+          btnText = 'Sem Ingredientes';
+          warningText = '<span style="display:block; color:var(--danger); font-size:0.7rem; font-weight:bold; margin-top:5px;">⚠️ Requer Ingredientes Saudáveis!</span>';
+        } else if (task.id === 'prepare_meals_feast' && (p.foodStockPremium || 0) <= 0) {
+          isBtnDisabled = true;
+          btnText = 'Sem Ingredientes';
+          warningText = '<span style="display:block; color:var(--danger); font-size:0.7rem; font-weight:bold; margin-top:5px;">⚠️ Requer Ingredientes Premium!</span>';
+        }
+
         card.innerHTML = `
           <div class="chore-meta">
             <h4>${task.name}</h4>
@@ -776,11 +835,14 @@ async function renderModalContent(modalId) {
               ${task.id.startsWith('prepare_meals') ? `
                 <span style="display:block; color:var(--text-muted); font-size:0.75rem;">Ingredientes exigidos: <strong>1 carga (${task.id === 'prepare_meals_quick' ? 'Básicos' : task.id === 'prepare_meals' ? 'Saudáveis' : 'Premium'})</strong></span>
               ` : ''}
+              ${warningText}
             </div>
           </div>
           <div class="price-action" style="margin-top: 15px;">
             <span class="price" style="font-size:1.1rem; color:var(--success);">Custo: Grátis</span>
-            <button class="btn-primary btn-small btn-full btn-do-chore" data-id="${task.id}">Realizar Tarefa</button>
+            <button class="btn-primary btn-small btn-full btn-do-chore" data-id="${task.id}" ${isBtnDisabled ? 'disabled="true" style="opacity:0.5; cursor:not-allowed; background:var(--text-muted);"' : ''}>
+              ${btnText}
+            </button>
           </div>
         `;
         container.appendChild(card);
