@@ -330,7 +330,8 @@ export async function refreshParticipantView() {
     }
 
     // Badge de Manutenções pendentes
-    const breakdownCount = p.activeEvents.filter(e => e.isBreakdown).length;
+    const houseBreakdowns = (p.activeEvents || []).filter(e => e.isBreakdown);
+    const breakdownCount = houseBreakdowns.length;
     const badgeMaint = document.getElementById('badge-maintenance');
     if (badgeMaint) {
       if (breakdownCount > 0) {
@@ -1132,8 +1133,9 @@ function updateVisualHouseAndFamily(p) {
   const roomKitchen = document.getElementById('room-card-kitchen');
   const roomBathroom = document.getElementById('room-card-chores');
   
-  const hasLeak = p.activeEvents.some(e => e.id === 'pipe_leak');
-  const hasFridge = p.activeEvents.some(e => e.id === 'fridge_repair');
+  const houseBreakdowns = (p.activeEvents || []).filter(e => e.isBreakdown);
+  const hasLeak = houseBreakdowns.some(e => e.id === 'pipe_leak');
+  const hasFridge = houseBreakdowns.some(e => e.id === 'fridge_repair');
 
   // Limpar alertas específicos antigos
   const existingAlertLeak = document.getElementById('alert-leak');
