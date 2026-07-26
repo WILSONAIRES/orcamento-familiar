@@ -43,8 +43,11 @@ if (SUPABASE_URL && SUPABASE_KEY) {
 app.use(cors());
 app.use(express.json());
 
+let isAutoCycling = false;
+
 // --- AUTO-AVANÇO DE CICLO AUTOMÁTICO COM BASE NO DIA DA SEMANA ---
 async function checkAndAdvanceCyclesAutomatically() {
+  if (isAutoCycling) return;
   try {
     const campaign = await db.getActiveCampaign();
     if (!campaign || !campaign.cycleTransitionDay) return;
@@ -62,6 +65,12 @@ async function checkAndAdvanceCyclesAutomatically() {
     if (currentDay === targetDay) {
       const todayStr = now.toISOString().split('T')[0]; // AAAA-MM-DD
       if (campaign.lastCycleAdvanceDate !== todayStr) {
+        isAutoCycling = true;
+        
+        // 1. Atualizar e salvar data no banco de dados ANTES para evitar que requisições concorrentes prossigam
+        campaign.lastCycleAdvanceDate = todayStr;
+        await db.updateCampaign(campaign);
+        
         console.log(`⏰ [AutoCycle] Hoje é ${campaign.cycleTransitionDay}. Rodando avanço de ciclo automático...`);
         
         const list = await db.getParticipants();
@@ -75,14 +84,13 @@ async function checkAndAdvanceCyclesAutomatically() {
           }
         }
 
-        campaign.lastCycleAdvanceDate = todayStr;
-        await db.updateCampaign(campaign);
-
         console.log(`⏰ [AutoCycle] Avanço de ciclo automático concluído!`);
       }
     }
   } catch (err) {
     console.error('Erro no AutoCycle:', err);
+  } finally {
+    isAutoCycling = false;
   }
 }
 
@@ -1462,6 +1470,18 @@ async function advanceParticipantWeekLogic(pId, adminName) {
   const p = await db.getParticipantById(pId);
   const campaign = await db.getActiveCampaign();
   if (!p || !campaign) throw new Error('Dados do participante ou campanha não encontrados.');
+
+  // Guardião do participante: evita duplo avanço automático no mesmo dia civil
+  const todayStr = new Date().toISOString().split('T')[0]; // AAAA-MM-DD
+  p.indicators = p.indicators || {};
+  if (adminName === 'Avanço Automático (Sistema)' && p.indicators.lastCycleAdvanceDate === todayStr) {
+    console.log(`⏰ [AutoCycle] Participante ${p.id} já avançou de ciclo hoje (${todayStr}). Pulando para evitar duplo avanço.`);
+    return;
+  }
+
+  if (adminName === 'Avanço Automático (Sistema)') {
+    p.indicators.lastCycleAdvanceDate = todayStr;
+  }
 
   const diff = INITIAL_DIFFICULTIES[campaign.difficulty];
 
