@@ -106,7 +106,8 @@ const LEISURE_OPTIONS = {
   streaming: { id: 'streaming', name: 'Assistir Filme em Casa (Streaming)', cost: 15, happiness: 5, energy: 5 },
   park: { id: 'park', name: 'Passeio no Parque / Piquenique', cost: 40, happiness: 10, energy: 10 },
   cinema: { id: 'cinema', name: 'Cinema & Lanche em Família', cost: 120, happiness: 22, energy: 15 },
-  trip: { id: 'trip', name: 'Viagem de Fim de Semana / Recreação', cost: 500, happiness: 50, energy: 25 }
+  trip: { id: 'trip', name: 'Viagem de Fim de Semana / Recreação', cost: 500, happiness: 50, energy: 25 },
+  nap: { id: 'nap', name: 'Tirar uma Soneca / Descansar', cost: 0, happiness: 0, energy: -25 }
 };
 
 // --- MIDDLEWARE DE AUTENTICAÇÃO JWT ---
@@ -910,7 +911,7 @@ app.post('/api/participant/:id/execute-leisure', authenticateToken, async (req, 
     const opt = LEISURE_OPTIONS[optionId];
     if (!opt) return res.status(400).json({ message: 'Opção de lazer inválida.' });
 
-    if (p.energy < opt.energy) {
+    if (opt.energy > 0 && p.energy < opt.energy) {
       return res.status(400).json({ message: 'Energia física insuficiente para esta atividade de lazer.' });
     }
     if (p.balance < opt.cost) {
@@ -918,15 +919,20 @@ app.post('/api/participant/:id/execute-leisure', authenticateToken, async (req, 
     }
 
     p.balance -= opt.cost;
-    p.energy -= opt.energy;
+    p.energy = Math.min(100, Math.max(0, p.energy - opt.energy));
     p.indicators.happiness = Math.min(100, p.indicators.happiness + opt.happiness);
+    
+    const outcomeText = opt.energy < 0 
+      ? `Descanso: '${opt.name}' concluído! Custo: R$ ${opt.cost}. Energia recuperada: +${Math.abs(opt.energy)}%.`
+      : `Lazer em família: '${opt.name}' concluído! Custo: R$ ${opt.cost}. Felicidade: +${opt.happiness}%.`;
+
     p.notifications.unshift({ 
       type: 'success', 
-      text: `Lazer em família: '${opt.name}' concluído! Custo: R$ ${opt.cost}. Felicidade: +${opt.happiness}%.` 
+      text: outcomeText 
     });
 
     await db.saveParticipant(p);
-    res.json({ success: true, message: 'Atividade de lazer realizada!' });
+    res.json({ success: true, message: opt.energy < 0 ? 'Você descansou e recuperou energia!' : 'Atividade de lazer realizada!' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Erro ao realizar lazer.' });

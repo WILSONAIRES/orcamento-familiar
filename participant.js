@@ -16,6 +16,7 @@ let currentInvProductAction = null; // 'cdb', 'poupanca', etc.
 let currentInvActionType = null;    // 'deposit' ou 'withdraw'
 
 const LEISURE_OPTIONS = [
+  { id: 'nap', name: 'Tirar uma Soneca (Descansar)', cost: 0, happiness: 0, energy: -25, emoji: '😴', description: 'Tire um tempo para descansar e recuperar suas energias sem gastar nada.' },
   { id: 'streaming', name: 'Filme em Casa (Streaming)', cost: 15, happiness: 5, energy: 5, emoji: '📺', description: 'Assista a um filme legal reunindo a família na sala.' },
   { id: 'park', name: 'Passeio no Parque / Piquenique', cost: 40, happiness: 10, energy: 10, emoji: '🧺', description: 'Dia de sol, ar livre e comunhão com a natureza no parque.' },
   { id: 'cinema', name: 'Cinema & Lanches em Família', cost: 120, happiness: 22, energy: 15, emoji: '🍿', description: 'Uma saída especial para assistir a uma estreia e comer pipoca.' },
@@ -980,13 +981,20 @@ function renderLeisureActivities(p) {
         <h4 style="font-size:1.1rem;">${opt.name}</h4>
         <p style="font-size:0.8rem; color:var(--text-muted); margin: 6px 0;">${opt.description}</p>
         <div class="chore-impacts-list" style="margin-top: 5px;">
-          <span class="warning-text" style="color:var(--warning); display:block; font-size:0.75rem;">😊 Felicidade: +${opt.happiness}%</span>
-          <span style="display:block; color:var(--text-muted); font-size:0.75rem;">Energia necessária: <strong>${opt.energy}%</strong></span>
+          ${opt.happiness > 0 ? `<span class="warning-text" style="color:var(--warning); display:block; font-size:0.75rem;">😊 Felicidade: +${opt.happiness}%</span>` : ''}
+          ${opt.energy < 0 
+            ? `<span style="display:block; color:var(--success); font-weight:600; font-size:0.75rem;">⚡ Energia recuperada: +${Math.abs(opt.energy)}%</span>`
+            : `<span style="display:block; color:var(--text-muted); font-size:0.75rem;">Energia necessária: <strong>${opt.energy}%</strong></span>`
+          }
         </div>
       </div>
       <div class="price-action" style="margin-top: 15px;">
-        <span class="price" style="font-size:1.1rem; display:block; margin-bottom:5px;">Custo: R$ ${opt.cost}</span>
-        <button class="btn-primary btn-small btn-full btn-buy-leisure" data-id="${opt.id}">Comprar Lazer</button>
+        <span class="price" style="font-size:1.1rem; display:block; margin-bottom:5px;">
+          ${opt.cost === 0 ? '<span style="color:var(--success); font-weight:bold;">Custo: Grátis</span>' : `Custo: R$ ${opt.cost}`}
+        </span>
+        <button class="btn-primary btn-small btn-full btn-buy-leisure" data-id="${opt.id}">
+          ${opt.cost === 0 ? 'Descansar / Dormir' : 'Comprar Lazer'}
+        </button>
       </div>
     `;
     container.appendChild(card);
