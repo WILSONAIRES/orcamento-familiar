@@ -65,6 +65,28 @@ export function initParticipantView() {
       if (!currentId) return;
 
       btnNextDay.disabled = true;
+
+      // Carregar dados frescos para verificar pendências obrigatórias
+      const p = await engine.getParticipantById(currentId);
+      if (p) {
+        const washedToday = p.tasksCompletedToday.includes('wash_dishes');
+        const hasAte = p.ateToday || p.tasksCompletedToday.some(t => t.startsWith('prepare_meals'));
+        
+        let warnings = [];
+        if (!hasAte) warnings.push('A família ainda não cozinhou / comeu nenhuma refeição hoje.');
+        if (!washedToday) warnings.push('A louça acumulada da cozinha não foi lavada hoje.');
+
+        if (warnings.length > 0) {
+          const confirmMsg = `⚠️ TAREFAS OBRIGATÓRIAS PENDENTES:\n\n` + 
+                             warnings.map(w => `• ${w}`).join('\n') + 
+                             `\n\nSe você for dormir com essas pendências, a Saúde e a Felicidade da família despenharão drasticamente no dia seguinte!\n\nDeseja ignorar as pendências e dormir mesmo assim?`;
+          if (!confirm(confirmMsg)) {
+            btnNextDay.disabled = false;
+            return;
+          }
+        }
+      }
+
       const res = await engine.nextDay(currentId);
       alert(res.message);
       btnNextDay.disabled = false;
@@ -824,8 +846,23 @@ async function renderModalContent(modalId) {
           warningText = '<span style="display:block; color:var(--danger); font-size:0.7rem; font-weight:bold; margin-top:5px;">⚠️ Requer Ingredientes Premium!</span>';
         }
 
+        // Status de Pendência/Conclusão no card
+        const isCompletedToday = p.tasksCompletedToday.includes(task.id);
+        const isMealTask = task.id.startsWith('prepare_meals');
+        const hasAte = p.ateToday || p.tasksCompletedToday.some(t => t.startsWith('prepare_meals'));
+        
+        let statusBadgeHtml = '';
+        if (isCompletedToday) {
+          statusBadgeHtml = `<span style="background:rgba(34, 197, 94, 0.1); color:var(--success); font-size:0.7rem; font-weight:bold; padding:2px 6px; border-radius:4px; margin-bottom:6px; display:inline-block; border:1px solid rgba(34,197,94,0.2);">✔️ Concluída Hoje</span>`;
+        } else if (isMealTask && hasAte) {
+          statusBadgeHtml = `<span style="background:rgba(34, 197, 94, 0.1); color:var(--success); font-size:0.7rem; font-weight:bold; padding:2px 6px; border-radius:4px; margin-bottom:6px; display:inline-block; border:1px solid rgba(34,197,94,0.2);">🥗 Família Alimentada</span>`;
+        } else {
+          statusBadgeHtml = `<span style="background:rgba(239, 68, 68, 0.1); color:var(--danger); font-size:0.7rem; font-weight:bold; padding:2px 6px; border-radius:4px; margin-bottom:6px; display:inline-block; border:1px solid rgba(239,68,68,0.2);">⏳ Pendente Hoje</span>`;
+        }
+
         card.innerHTML = `
           <div class="chore-meta">
+            ${statusBadgeHtml}
             <h4>${task.name}</h4>
             <p>${task.description}</p>
             <div class="chore-impacts-list" style="margin-top: 10px;">
@@ -841,7 +878,7 @@ async function renderModalContent(modalId) {
           <div class="price-action" style="margin-top: 15px;">
             <span class="price" style="font-size:1.1rem; color:var(--success);">Custo: Grátis</span>
             <button class="btn-primary btn-small btn-full btn-do-chore" data-id="${task.id}" ${isBtnDisabled ? 'disabled="true" style="opacity:0.5; cursor:not-allowed; background:var(--text-muted);"' : ''}>
-              ${btnText}
+              ${isCompletedToday ? 'Refazer Tarefa' : btnText}
             </button>
           </div>
         `;
