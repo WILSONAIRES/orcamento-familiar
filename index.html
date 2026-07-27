@@ -430,6 +430,33 @@
               </table>
             </div>
           </div>
+
+          <!-- Simulador de Fórmulas de Ranking -->
+          <div class="table-panel glass-panel" style="margin-top: 2rem; border-color: rgba(99, 102, 241, 0.3);">
+            <div class="table-header" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom:12px;">
+              <div>
+                <h3 style="color: #818cf8; font-size:1.3rem; display:flex; align-items:center; gap:8px;">🔬 Comparador de Fórmulas de Ranking</h3>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">Compare a pontuação dos alunos sob diferentes propostas matemáticas antes de decidir qual aplicar.</p>
+              </div>
+            </div>
+            <div class="table-responsive" style="margin-top: 15px;">
+              <table id="table-simulator" class="table-modern">
+                <thead>
+                  <tr>
+                    <th>Aluno</th>
+                    <th>Mês / Dia</th>
+                    <th style="text-align:center;">Fórmula Atual<br><span style="font-size:0.7rem; color:var(--text-muted); font-weight:normal;">(Ações Ativas Hoje)</span></th>
+                    <th style="text-align:center; color:#60a5fa;">Proposta A<br><span style="font-size:0.7rem; color:rgba(96,165,250,0.8); font-weight:normal;">(Consistência × Dias)</span></th>
+                    <th style="text-align:center; color:#34d399;">Proposta B<br><span style="font-size:0.7rem; color:rgba(52,211,153,0.8); font-weight:normal;">(Progresso Fixo + Objetivos)</span></th>
+                    <th style="text-align:center; color:#fb7185;">Proposta C<br><span style="font-size:0.7rem; color:rgba(251,113,133,0.8); font-weight:normal;">(Híbrido: Progresso + Média)</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Inserido dinamicamente via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         <!-- Aba 2: Parametrização da Campanha -->

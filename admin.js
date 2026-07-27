@@ -209,6 +209,91 @@ async function renderAdminDashboard() {
     `;
     tableBody.appendChild(row);
   });
+
+  renderFormulaSimulator(participants, campaign);
+}
+
+// Renderizar comparador de fórmulas de pontuação
+function renderFormulaSimulator(participants, campaign) {
+  const tableBody = document.querySelector('#table-simulator tbody');
+  if (!tableBody) return;
+  tableBody.innerHTML = '';
+
+  if (participants.length === 0) {
+    tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Nenhum desbravador para simular.</td></tr>`;
+    return;
+  }
+
+  const rowsData = participants.map(p => {
+    // 1. FÓRMULA ATUAL
+    const scoreActual = p.indicators.score || 0;
+
+    // Dados de indicadores
+    const health = p.indicators.health || 0;
+    const happiness = p.indicators.happiness || 0;
+    const cleanliness = p.indicators.cleanliness || 0;
+    const financial = p.indicators.financial || 50;
+
+    const w = campaign.weights || { health: 30, happiness: 30, finance: 25, cleanliness: 15 };
+    const baseScore = (health * (w.health / 100)) +
+                      (happiness * (w.happiness / 100)) +
+                      (financial * (w.finance / 100)) +
+                      (cleanliness * (w.cleanliness / 100));
+
+    const totalDays = ((p.week - 1) * 30) + (p.day || 1);
+
+    // Contar objetivos e somar bônus
+    let goalsBonus = 0;
+    if (campaign.goals) {
+      campaign.goals.forEach(goal => {
+        if (p.goalsStatus && p.goalsStatus[goal.id] === "completed") {
+          goalsBonus += goal.points;
+        }
+      });
+    }
+
+    // 2. PROPOSTA A (Consistência no Tempo)
+    // Multiplica indicadores médios por dias decorridos da simulação
+    const scorePropA = Math.round(baseScore * totalDays * 0.35) + goalsBonus;
+
+    // 3. PROPOSTA B (Progresso Fixo + Objetivos)
+    // 300 pts por ciclo mensal completo + bônus de hoje + objetivos
+    const cycleBonus = (p.week - 1) * 300;
+    const todayBonus = (p.tasksCompletedToday || []).length * 10;
+    const scorePropB = cycleBonus + goalsBonus + todayBonus;
+
+    // 4. PROPOSTA C (Híbrido Equilibrado)
+    // 150 pts por ciclo + indicadores médios * 8 + objetivos
+    const cycleBonusC = (p.week - 1) * 150;
+    const statsBonusC = Math.round(((health + happiness + cleanliness + financial) / 4) * 8);
+    const scorePropC = cycleBonusC + statsBonusC + goalsBonus;
+
+    return {
+      name: p.name,
+      week: p.week,
+      day: p.day || 1,
+      scoreActual,
+      scorePropA,
+      scorePropB,
+      scorePropC
+    };
+  });
+
+  // Ordenar por Proposta A (Consistência × Dias) para exibição estruturada
+  rowsData.sort((a, b) => b.scorePropA - a.scorePropA);
+
+  rowsData.forEach(item => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${item.name}</strong></td>
+      <td><span class="badge-info">Mês ${item.week} / Dia ${item.day}</span></td>
+      <td style="text-align:center;"><strong>${item.scoreActual} pts</strong></td>
+      <td style="text-align:center; color:#60a5fa; background: rgba(96,165,250,0.02); font-weight:bold;">${item.scorePropA} pts</td>
+      <td style="text-align:center; color:#34d399; background: rgba(52,211,153,0.02); font-weight:bold;">${item.scorePropB} pts</td>
+      <td style="text-align:center; color:#fb7185; background: rgba(251,113,133,0.02); font-weight:bold;">${item.scorePropC} pts</td>
+    `;
+    tableBody.appendChild(tr);
+  });
 }
 
 // 2. Carregar configurações
