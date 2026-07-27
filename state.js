@@ -492,21 +492,30 @@ class SimulationEngine {
   // --- LÓGICA DE CÁLCULO DE PONTUAÇÃO CLIENT-SIDE (Sincrona) ---
 
   calculateFinalScore(participant, campaign) {
-    if (participant.indicators && participant.indicators.score !== undefined) {
-      return participant.indicators.score;
+    const ind = participant.indicators || {};
+    const health = ind.health || 0;
+    const happiness = ind.happiness || 0;
+    const cleanliness = ind.cleanliness || 0;
+    const financial = ind.financial !== undefined ? ind.financial : (ind.finance !== undefined ? ind.finance : 50);
+
+    // 150 pontos por mês/ciclo completo
+    const cycleBonus = ((participant.week || 1) - 1) * 150;
+
+    // Média dos indicadores atuais multiplicada por 8 (máximo de 800 pontos)
+    const avgIndicators = (health + happiness + cleanliness + financial) / 4;
+    const statsBonus = Math.round(avgIndicators * 8);
+
+    // Bônus de Objetivos Concluídos da Campanha
+    let goalsBonus = 0;
+    if (campaign && campaign.goals) {
+      campaign.goals.forEach(goal => {
+        if (participant.goalsStatus && participant.goalsStatus[goal.id] === "completed") {
+          goalsBonus += goal.points;
+        }
+      });
     }
-    
-    // Fallback inicial baseado nas atividades de hoje
-    let initialScore = 0;
-    const cleaned = (participant.tasksCompletedToday || []).includes('clean_house');
-    const washed = (participant.tasksCompletedToday || []).includes('wash_dishes');
-    const cooked = participant.ateToday || (participant.tasksCompletedToday || []).some(t => t.startsWith('prepare_meals'));
-    
-    if (cleaned) initialScore += 10;
-    if (washed) initialScore += 10;
-    if (cooked) initialScore += 10;
-    
-    return initialScore;
+
+    return cycleBonus + statsBonus + goalsBonus;
   }
 }
 
