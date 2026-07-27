@@ -492,37 +492,21 @@ class SimulationEngine {
   // --- LÓGICA DE CÁLCULO DE PONTUAÇÃO CLIENT-SIDE (Sincrona) ---
 
   calculateFinalScore(participant, campaign) {
-    const w = campaign.weights || { health: 30, happiness: 30, finance: 25, cleanliness: 15 };
-    const ind = participant.indicators || { health: 50, happiness: 50, cleanliness: 50, financial: 50 };
-
-    // Indicador base ponderado (0 a 100)
-    const baseScore = (ind.health * (w.health / 100)) +
-                      (ind.happiness * (w.happiness / 100)) +
-                      (ind.financial * (w.finance / 100)) +
-                      (ind.cleanliness * (w.cleanliness / 100));
-
-    // Dias acumulados de simulação (30 dias por ciclo mensal + dia atual)
-    const totalDays = ((participant.week - 1) * 30) + (participant.day || 1);
-
-    // Pontuação baseada em manter os indicadores altos ao longo do tempo (sobrevivência de qualidade)
-    // Coeficiente de 0.35 garante que um ciclo completo de 30 dias com 100% de aproveitamento resulte em ~1050 pts.
-    const performanceScore = Math.round(baseScore * totalDays * 0.35);
-
-    // Bônus imediato pelas tarefas executadas no ciclo corrente (recompensa direta por fazer tarefas diárias)
-    const currentTasksDone = (participant.tasksCompletedThisWeek || []).length;
-    const taskBonus = currentTasksDone * 10; // 10 pontos por tarefa realizada no mês
-
-    // Bônus de Objetivos Concluídos da Campanha
-    let goalsBonus = 0;
-    if (campaign.goals) {
-      campaign.goals.forEach(goal => {
-        if (participant.goalsStatus && participant.goalsStatus[goal.id] === "completed") {
-          goalsBonus += goal.points;
-        }
-      });
+    if (participant.indicators && participant.indicators.score !== undefined) {
+      return participant.indicators.score;
     }
-
-    return performanceScore + taskBonus + goalsBonus;
+    
+    // Fallback inicial baseado nas atividades de hoje
+    let initialScore = 0;
+    const cleaned = (participant.tasksCompletedToday || []).includes('clean_house');
+    const washed = (participant.tasksCompletedToday || []).includes('wash_dishes');
+    const cooked = participant.ateToday || (participant.tasksCompletedToday || []).some(t => t.startsWith('prepare_meals'));
+    
+    if (cleaned) initialScore += 10;
+    if (washed) initialScore += 10;
+    if (cooked) initialScore += 10;
+    
+    return initialScore;
   }
 }
 

@@ -631,6 +631,22 @@ app.put('/api/campaign', authenticateToken, requireAdmin, async (req, res) => {
 app.get('/api/participants', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const rows = await db.getParticipants();
+    // Inicializar score se estiver indefinido
+    for (const p of rows) {
+      if (p.indicators.score === undefined) {
+        let initialScore = 0;
+        const cleaned = (p.tasksCompletedToday || []).includes('clean_house');
+        const washed = (p.tasksCompletedToday || []).includes('wash_dishes');
+        const cooked = p.ateToday || (p.tasksCompletedToday || []).some(t => t.startsWith('prepare_meals'));
+        
+        if (cleaned) initialScore += 10;
+        if (washed) initialScore += 10;
+        if (cooked) initialScore += 10;
+        
+        p.indicators.score = initialScore;
+        await db.saveParticipant(p);
+      }
+    }
     res.json(rows);
   } catch (err) {
     console.error(err);
@@ -773,6 +789,21 @@ app.get('/api/participant/:id', authenticateToken, async (req, res) => {
     const historySnaps = await db.getHistory(pId);
     p.history = historySnaps;
 
+    // Inicializar score se estiver indefinido
+    if (p.indicators.score === undefined) {
+      let initialScore = 0;
+      const cleaned = (p.tasksCompletedToday || []).includes('clean_house');
+      const washed = (p.tasksCompletedToday || []).includes('wash_dishes');
+      const cooked = p.ateToday || (p.tasksCompletedToday || []).some(t => t.startsWith('prepare_meals'));
+      
+      if (cleaned) initialScore += 10;
+      if (washed) initialScore += 10;
+      if (cooked) initialScore += 10;
+      
+      p.indicators.score = initialScore;
+      await db.saveParticipant(p);
+    }
+
     res.json(p);
   } catch (err) {
     console.error(err);
@@ -815,6 +846,7 @@ app.post('/api/participant/:id/pay-bill', authenticateToken, async (req, res) =>
     billList.splice(billIdx, 1);
     p.notifications.unshift({ type: 'success', text: `Pago faturamento '${bill.name}' por R$ ${finalVal.toFixed(2)}.` });
     p.indicators.happiness = Math.min(100, p.indicators.happiness + 2);
+    p.indicators.score = (p.indicators.score || 0) + 10; // +10 por pagar faturas
 
     await db.saveParticipant(p);
     res.json({ success: true, message: 'Fatura paga!' });
@@ -891,6 +923,7 @@ app.post('/api/participant/:id/execute-task', authenticateToken, async (req, res
       type: 'info', 
       text: `Tarefa concluída: '${task.name}'. ${cleaningUsageText} Energia: -${task.energyCost}%. Felicidade: -${happinessDecrease}%.` 
     });
+    p.indicators.score = (p.indicators.score || 0) + 10; // +10 por fazer tarefas domésticas
 
     await db.saveParticipant(p);
     res.json({ success: true, message: `Tarefa '${task.name}' realizada com sucesso!` });
@@ -921,6 +954,9 @@ app.post('/api/participant/:id/execute-leisure', authenticateToken, async (req, 
     p.balance -= opt.cost;
     p.energy = Math.min(100, Math.max(0, p.energy - opt.energy));
     p.indicators.happiness = Math.min(100, p.indicators.happiness + opt.happiness);
+    if (opt.cost > 0) {
+      p.indicators.score = (p.indicators.score || 0) + 10; // +10 por lazer pago
+    }
     
     const outcomeText = opt.energy < 0 
       ? `Descanso: '${opt.name}' concluído! Custo: R$ ${opt.cost}. Energia recuperada: +${Math.abs(opt.energy)}%.`
@@ -962,6 +998,7 @@ app.post('/api/participant/:id/repair-breakdown', authenticateToken, async (req,
       type: 'success', 
       text: `Reparo realizado: '${evt.name}' consertado! Custou R$ ${evt.repairCost}.` 
     });
+    p.indicators.score = (p.indicators.score || 0) + 20; // +20 por reparo doméstico
 
     await db.saveParticipant(p);
     res.json({ success: true, message: 'Equipamento consertado!' });
@@ -1164,6 +1201,7 @@ app.post('/api/participant/:id/extra-income', authenticateToken, async (req, res
 
     // Registrar execução para bloquear reuso no ciclo
     p.extraIncomeCompletedThisWeek.push(activityId);
+    p.indicators.score = (p.indicators.score || 0) + 15; // +15 por bicos/renda extra
 
     await db.saveParticipant(p);
     res.json({ 
@@ -1462,6 +1500,7 @@ app.post('/api/participant/:id/buy-medicine', authenticateToken, async (req, res
     p.indicators.health = Math.min(100, p.indicators.health + Math.abs(ill.healthImpact) * 0.8);
     p.indicators.happiness = Math.min(100, p.indicators.happiness + Math.abs(ill.happinessImpact) * 0.8);
     p.notifications.unshift({ type: 'success', text: `Medicamento '${ill.requiredMedicine}' comprado. Doença curada!` });
+    p.indicators.score = (p.indicators.score || 0) + 15; // +15 por comprar remédio / curar doença
 
     await db.saveParticipant(p);
     res.json({ success: true, message: 'Remédio comprado!' });
@@ -1732,6 +1771,9 @@ async function advanceParticipantWeekLogic(pId, adminName) {
 
       if (status !== "in_progress") {
         p.goalsStatus[goal.id] = status;
+        if (status === 'completed') {
+          p.indicators.score = (p.indicators.score || 0) + goal.points;
+        }
         p.notifications.unshift({
           type: status === 'completed' ? 'success' : 'danger',
           text: `Objetivo '${goal.name}' ${status === 'completed' ? 'Concluído! (+' + goal.points + ' pts)' : 'Falhou!'}`
@@ -1904,6 +1946,7 @@ app.post('/api/admin/approve-loan', authenticateToken, requireAdmin, async (req,
     }
 
     p.pendingLoans.splice(reqIdx, 1);
+
     await db.saveParticipant(p);
 
     res.json({ success: true, message: `Solicitação resolvida!` });
