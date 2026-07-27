@@ -43,6 +43,17 @@ if (SUPABASE_URL && SUPABASE_KEY) {
 app.use(cors());
 app.use(express.json());
 
+// --- AJUSTE DE FUSO HORÁRIO DE BRASÍLIA/SÃO PAULO (UTC-3) ---
+function getSaoPauloDateString(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(date).split('/');
+  return `${parts[2]}-${parts[1]}-${parts[0]}`;
+}
+
 let isAutoCycling = false;
 
 // --- AUTO-AVANÇO DE CICLO AUTOMÁTICO COM BASE NO DIA DA SEMANA ---
@@ -60,10 +71,12 @@ async function checkAndAdvanceCyclesAutomatically() {
     if (targetDay === undefined) return;
 
     const now = new Date();
-    const currentDay = now.getDay(); // 0-6 (0=Domingo, 1=Segunda, etc.)
+    // Obter data local de São Paulo para cálculo correto do dia da semana (0-6)
+    const tzDate = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+    const currentDay = tzDate.getDay(); // 0-6 (0=Domingo, 1=Segunda, etc. no fuso de SP)
 
     if (currentDay === targetDay) {
-      const todayStr = now.toISOString().split('T')[0]; // AAAA-MM-DD
+      const todayStr = getSaoPauloDateString(now); // AAAA-MM-DD no fuso de SP
       if (campaign.lastCycleAdvanceDate !== todayStr) {
         isAutoCycling = true;
         
@@ -671,7 +684,7 @@ app.get('/api/participant/:id', authenticateToken, async (req, res) => {
     const checkAndAdvanceDaysAutomatically = async (part) => {
       try {
         const now = new Date();
-        const todayStr = now.toISOString().split('T')[0]; // AAAA-MM-DD
+        const todayStr = getSaoPauloDateString(now); // AAAA-MM-DD no fuso de SP
         
         part.day = part.day || 1;
         part.lastDayTransitionDate = part.lastDayTransitionDate || todayStr;
@@ -1516,8 +1529,8 @@ async function advanceParticipantWeekLogic(pId, adminName) {
   const campaign = await db.getActiveCampaign();
   if (!p || !campaign) throw new Error('Dados do participante ou campanha não encontrados.');
 
-  // Guardião do participante: evita duplo avanço automático no mesmo dia civil
-  const todayStr = new Date().toISOString().split('T')[0]; // AAAA-MM-DD
+  // Guardião do participante: evita duplo avanço automático no mesmo dia civil (São Paulo)
+  const todayStr = getSaoPauloDateString(); // AAAA-MM-DD no fuso de SP
   p.indicators = p.indicators || {};
   if (adminName === 'Avanço Automático (Sistema)' && p.indicators.lastCycleAdvanceDate === todayStr) {
     console.log(`⏰ [AutoCycle] Participante ${p.id} já avançou de ciclo hoje (${todayStr}). Pulando para evitar duplo avanço.`);
