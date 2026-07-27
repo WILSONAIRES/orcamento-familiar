@@ -70,17 +70,21 @@ export function initParticipantView() {
       // Carregar dados frescos para verificar pendências obrigatórias
       const p = await engine.getParticipantById(currentId);
       if (p) {
+        const cleanedToday = p.tasksCompletedToday.includes('clean_house');
         const washedToday = p.tasksCompletedToday.includes('wash_dishes');
+        const clothesWashedToday = p.tasksCompletedToday.includes('wash_clothes');
         const hasAte = p.ateToday || p.tasksCompletedToday.some(t => t.startsWith('prepare_meals'));
         
         let warnings = [];
         if (!hasAte) warnings.push('A família ainda não cozinhou / comeu nenhuma refeição hoje.');
-        if (!washedToday) warnings.push('A louça acumulada da cozinha não foi lavada hoje.');
+        if (!cleanedToday) warnings.push('A casa não foi limpa hoje.');
+        if (!washedToday) warnings.push('A louça/pia acumulada não foi lavada hoje.');
+        if (!clothesWashedToday) warnings.push('As roupas sujas da família não foram lavadas hoje.');
 
         if (warnings.length > 0) {
           const confirmMsg = `⚠️ TAREFAS OBRIGATÓRIAS PENDENTES:\n\n` + 
                              warnings.map(w => `• ${w}`).join('\n') + 
-                             `\n\nSe você for dormir com essas pendências, a Saúde e a Felicidade da família despenharão drasticamente no dia seguinte!\n\nDeseja ignorar as pendências e dormir mesmo assim?`;
+                             `\n\nSe você for dormir com essas pendências, a Saúde, Felicidade e Limpeza da família despenharão drasticamente no dia seguinte!\n\nDeseja ignorar as pendências e dormir mesmo assim?`;
           if (!confirm(confirmMsg)) {
             btnNextDay.disabled = false;
             return;
@@ -323,6 +327,11 @@ export async function refreshParticipantView() {
     updateBar('happiness', 'bar-indicator-happiness', 'val-indicator-happiness');
     updateBar('cleanliness', 'bar-indicator-cleanliness', 'val-indicator-cleanliness');
     updateBar('financial', 'bar-indicator-finance', 'val-indicator-finance');
+
+    // Atualizar Barra de Energia Física
+    const valEnergy = p.energy !== undefined ? p.energy : 100;
+    document.getElementById('val-indicator-energy').textContent = `${valEnergy}%`;
+    document.getElementById('bar-indicator-energy').style.width = `${valEnergy}%`;
 
     // Recurso Financeiro
     document.getElementById('player-cash-val').textContent = `R$ ${p.balance.toFixed(2)}`;

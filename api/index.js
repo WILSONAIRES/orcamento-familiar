@@ -714,11 +714,20 @@ app.get('/api/participant/:id', authenticateToken, async (req, res) => {
               part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 10);
               part.indicators.health = Math.max(0, part.indicators.health - 2);
               part.indicators.happiness = Math.max(0, part.indicators.happiness - 2);
-              logs.push('A louça não foi lavada hoje (Limpeza: -10%, Saúde: -2%, Felicidade: -2%)');
+              logs.push('A pia/louça não foi lavada hoje (Limpeza: -10%, Saúde: -2%, Felicidade: -2%)');
             }
 
-            // 3. Alimentação
-            const preparedToday = part.tasksCompletedToday.includes('prepare_meals');
+            // 3. Roupas (wash_clothes)
+            const clothesWashedToday = part.tasksCompletedToday.includes('wash_clothes');
+            if (!clothesWashedToday) {
+              part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 10);
+              part.indicators.health = Math.max(0, part.indicators.health - 1);
+              part.indicators.happiness = Math.max(0, part.indicators.happiness - 2);
+              logs.push('As roupas não foram lavadas hoje (Limpeza: -10%, Saúde: -1%, Felicidade: -2%)');
+            }
+
+            // 4. Alimentação
+            const preparedToday = part.tasksCompletedToday.some(t => t.startsWith('prepare_meals'));
             const hasAte = part.ateToday || preparedToday;
 
             if (!hasAte) {
@@ -1392,17 +1401,26 @@ app.post('/api/participant/:id/next-day', authenticateToken, async (req, res) =>
       logs.push('A casa não foi limpa hoje (Limpeza: -15%, Saúde: -3%, Felicidade: -3%)');
     }
 
-    // 2. Verificar Pratos (Tarefa wash_dishes)
+    // 2. Verificar Pia/Louça (Tarefa wash_dishes)
     const washedToday = p.tasksCompletedToday.includes('wash_dishes');
     if (!washedToday) {
       p.indicators.cleanliness = Math.max(0, p.indicators.cleanliness - 10);
       p.indicators.health = Math.max(0, p.indicators.health - 2);
       p.indicators.happiness = Math.max(0, p.indicators.happiness - 2);
-      logs.push('A louça não foi lavada hoje (Limpeza: -10%, Saúde: -2%, Felicidade: -2%)');
+      logs.push('A pia/louça não foi lavada hoje (Limpeza: -10%, Saúde: -2%, Felicidade: -2%)');
     }
 
-    // 3. Verificar Alimentação (Tarefa prepare_meals ou comprado do supermercado hoje)
-    const preparedToday = p.tasksCompletedToday.includes('prepare_meals');
+    // 3. Verificar Roupas (Tarefa wash_clothes)
+    const clothesWashedToday = p.tasksCompletedToday.includes('wash_clothes');
+    if (!clothesWashedToday) {
+      p.indicators.cleanliness = Math.max(0, p.indicators.cleanliness - 10);
+      p.indicators.health = Math.max(0, p.indicators.health - 1);
+      p.indicators.happiness = Math.max(0, p.indicators.happiness - 2);
+      logs.push('As roupas não foram lavadas hoje (Limpeza: -10%, Saúde: -1%, Felicidade: -2%)');
+    }
+
+    // 4. Verificar Alimentação (Tarefa prepare_meals_* ou comprado hoje)
+    const preparedToday = p.tasksCompletedToday.some(t => t.startsWith('prepare_meals'));
     const hasAte = p.ateToday || preparedToday;
 
     if (!hasAte) {

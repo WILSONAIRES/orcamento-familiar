@@ -601,6 +601,7 @@ h1, h2, h3, h4, h5, h6 {
 .progress-bar.happiness { background: var(--warning); }
 .progress-bar.cleanliness { background: var(--info); }
 .progress-bar.finance { background: var(--success); }
+.progress-bar.energy { background: #eab308; }
 
 .indicator-value {
   font-size: 0.8rem;
