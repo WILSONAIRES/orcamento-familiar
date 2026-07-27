@@ -182,6 +182,18 @@ async function renderAdminDashboard() {
     else if (index === 1) posStr = '🥈';
     else if (index === 2) posStr = '🥉';
 
+    const cleaned = (p.tasksCompletedToday || []).includes('clean_house');
+    const washed = (p.tasksCompletedToday || []).includes('wash_dishes');
+    const ate = p.ateToday || (p.tasksCompletedToday || []).some(t => t.startsWith('prepare_meals'));
+
+    const routineHtml = `
+      <div style="display:flex; gap:8px; justify-content:center; align-items:center;">
+        <span title="${cleaned ? 'Faxina Realizada' : 'Faxina Pendente'}" style="opacity: ${cleaned ? 1 : 0.25}; font-size: 1.1rem; filter: ${cleaned ? 'none' : 'grayscale(100%)'}; cursor: help;">🧹</span>
+        <span title="${washed ? 'Louça Lavada' : 'Louça Pendente'}" style="opacity: ${washed ? 1 : 0.25}; font-size: 1.1rem; filter: ${washed ? 'none' : 'grayscale(100%)'}; cursor: help;">🍽️</span>
+        <span title="${ate ? 'Família Alimentada' : 'Família Faminta'}" style="opacity: ${ate ? 1 : 0.25}; font-size: 1.1rem; filter: ${ate ? 'none' : 'grayscale(100%)'}; cursor: help;">🍳</span>
+      </div>
+    `;
+
     row.innerHTML = `
       <td><strong>${posStr}</strong></td>
       <td><strong>${p.name}</strong></td>
@@ -192,6 +204,7 @@ async function renderAdminDashboard() {
       <td><span class="badge-info">${p.indicators.cleanliness}%</span></td>
       <td class="${item.netWorth >= 0 ? 'green-text' : 'red-text'}"><strong>R$ ${item.netWorth.toFixed(2)}</strong></td>
       <td>${item.goalsCompleted}/${item.totalGoals}</td>
+      <td>${routineHtml}</td>
       <td><span class="badge-success" style="font-size:0.95rem; padding: 4px 10px;">${item.score} pts</span></td>
     `;
     tableBody.appendChild(row);
