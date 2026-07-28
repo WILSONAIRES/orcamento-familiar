@@ -45,13 +45,150 @@ app.use(express.json());
 
 // --- AJUSTE DE FUSO HORÁRIO DE BRASÍLIA/SÃO PAULO (UTC-3) ---
 function getSaoPauloDateString(date = new Date()) {
-  const parts = new Intl.DateTimeFormat('pt-BR', {
+  const dtf = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Sao_Paulo',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit'
-  }).format(date).split('/');
-  return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  });
+  const parts = dtf.formatToParts(date);
+  const year = parts.find(p => p.type === 'year').value;
+  const month = parts.find(p => p.type === 'month').value;
+  const day = parts.find(p => p.type === 'day').value;
+  return `${year}-${month}-${day}`;
+}
+
+async function checkAndAdvanceDaysAutomatically(part) {
+  try {
+    const now = new Date();
+    const todayStr = getSaoPauloDateString(now); // AAAA-MM-DD no fuso de SP
+    
+    part.day = part.day || 1;
+    part.lastDayTransitionDate = part.lastDayTransitionDate || todayStr;
+    part.tasksCompletedToday = part.tasksCompletedToday || [];
+    part.ateToday = part.ateToday || false;
+    part.foodStockBasic = part.foodStockBasic !== undefined ? part.foodStockBasic : 0;
+    part.foodStockHealthy = part.foodStockHealthy !== undefined ? part.foodStockHealthy : 5;
+    part.foodStockPremium = part.foodStockPremium !== undefined ? part.foodStockPremium : 0;
+
+    if (part.lastDayTransitionDate !== todayStr) {
+      if (part.day < 30) {
+        console.log(`⏰ [AutoDay] Virando dia automático para ${part.id}. De ${part.day} para ${part.day + 1}`);
+        let logs = [];
+        
+        // 1. Limpeza (clean_house)
+        const cleanedToday = part.tasksCompletedToday.includes('clean_house');
+        if (!cleanedToday) {
+          part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 15);
+          part.indicators.health = Math.max(0, part.indicators.health - 3);
+          part.indicators.happiness = Math.max(0, part.indicators.happiness - 3);
+          logs.push('A casa não foi limpa hoje (Limpeza: -15%, Saúde: -3%, Felicidade: -3%)');
+        }
+
+        // 2. Pratos (wash_dishes)
+        const washedToday = part.tasksCompletedToday.includes('wash_dishes');
+        if (!washedToday) {
+          part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 10);
+          part.indicators.health = Math.max(0, part.indicators.health - 2);
+          part.indicators.happiness = Math.max(0, part.indicators.happiness - 2);
+          logs.push('A pia/louça não foi lavada hoje (Limpeza: -10%, Saúde: -2%, Felicidade: -2%)');
+        }
+
+        // 3. Roupas (wash_clothes)
+        const clothesWashedToday = part.tasksCompletedToday.includes('wash_clothes');
+        if (!clothesWashedToday) {
+          part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 10);
+          part.indicators.health = Math.max(0, part.indicators.health - 1);
+          part.indicators.happiness = Math.max(0, part.indicators.happiness - 2);
+          logs.push('As roupas não foram lavadas hoje (Limpeza: -10%, Saúde: -1%, Felicidade: -2%)');
+        }
+
+        // 4. Alimentação
+        const preparedToday = part.tasksCompletedToday.some(t => t.startsWith('prepare_meals'));
+        const hasAte = part.ateToday || preparedToday;
+
+        if (!hasAte) {
+          part.indicators.health = 10;
+          part.indicators.happiness = 10;
+          logs.push('⚠️ A família ficou com FOME hoje! Saúde e Felicidade desceram para o nível mais baixo (10%)!');
+        }
+
+        // 4. Consequências de Limpeza Baixa (Quebras Estruturais - Probabilidade Dinâmica)
+        const cleanVal = part.indicators.cleanliness || 0;
+        const breakdownChance = 0.05 + 0.90 * (1.0 - (cleanVal / 100.0));
+        if (Math.random() < breakdownChance) {
+          const breakdownTemplates = [
+            { id: 'pipe_leak', name: 'Vazamento no Banheiro', repairCost: 300, description: 'Um cano estourou na parede do banheiro, molhando a casa e exigindo encanador de emergência.' },
+            { id: 'fridge_repair', name: 'Geladeira Queimou', repairCost: 450, description: 'A geladeira parou de funcionar e os alimentos correm risco de estragar. Conserto imediato necessário.' }
+          ];
+          const choice = breakdownTemplates[Math.floor(Math.random() * breakdownTemplates.length)];
+          if (!part.activeEvents.some(e => e.id === choice.id)) {
+            part.activeEvents.push({
+              id: choice.id,
+              name: choice.name,
+              description: choice.description,
+              impact: 0,
+              tip: 'Problemas na estrutura da casa reduzem a limpeza e o bem-estar da família. Resolva-os o quanto antes!',
+              weekTriggered: part.week,
+              isBreakdown: true,
+              repairCost: choice.repairCost
+            });
+            part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 10);
+            part.indicators.happiness = Math.max(0, part.indicators.happiness - 5);
+            logs.push(`🔧 Ocorreu um '${choice.name}' (Chance: ${Math.round(breakdownChance*100)}%)! Chame manutenção.`);
+          }
+        }
+
+        // 5. Consequências de Saúde/Felicidade Baixa (Doenças - Probabilidade Dinâmica)
+        const healthVal = part.indicators.health || 0;
+        const happyVal = part.indicators.happiness || 0;
+        const avgHealthHappy = (healthVal + happyVal) / 2.0;
+        const diseaseChance = 0.05 + 0.90 * (1.0 - (avgHealthHappy / 100.0));
+        if (Math.random() < diseaseChance) {
+          const diseaseTemplates = [
+            { id: 'gripe', name: 'Gripe Comum', description: 'Febre baixa, coriza e dor no corpo. Exige repouso e antitérmico.', requiredMedicine: 'Antitérmico e Vitamina C', medicineCost: 45, recoveryWeeks: 1, healthImpact: -15, happinessImpact: -10 },
+            { id: 'infeccao_intestinal', name: 'Infecção Intestinal', description: 'Causada por alimentação inadequada ou falta de higiene na cozinha.', requiredMedicine: 'Antibiótico e Soro de Reidratação', medicineCost: 80, recoveryWeeks: 1, healthImpact: -25, happinessImpact: -15 },
+            { id: 'estresse_extremo', name: 'Cansaço Extremo / Estresse', description: 'Esgotamento físico e mental devido a excesso de preocupação financeira.', requiredMedicine: 'Polivitamínico e Lazer', medicineCost: 60, recoveryWeeks: 2, healthImpact: -20, happinessImpact: -25 },
+            { id: 'alergia_pele', name: 'Alergia de Pele', description: 'Reação alérgica causada por poeira ou acúmulo de sujeira na residência.', requiredMedicine: 'Pomada Antialérgica', medicineCost: 35, recoveryWeeks: 1, healthImpact: -10, happinessImpact: -8 }
+          ];
+          const choice = diseaseTemplates[Math.floor(Math.random() * diseaseTemplates.length)];
+          if (!part.activeIllnesses.some(i => i.id === choice.id)) {
+            part.activeIllnesses.push({ ...choice });
+            part.indicators.health = Math.max(0, part.indicators.health + choice.healthImpact);
+            part.indicators.happiness = Math.max(0, part.indicators.happiness + choice.happinessImpact);
+            logs.push(`🤒 Um membro da família contraiu '${choice.name}' (Chance: ${Math.round(diseaseChance*100)}%)! Vá à Farmácia.`);
+          }
+        }
+
+        part.day += 1;
+        part.tasksCompletedToday = [];
+        part.ateToday = false;
+        part.energy = 100;
+
+        const msgStr = logs.length > 0 
+          ? `Dia ${part.day - 1} finalizado. Ocorrências: ${logs.join('; ')}`
+          : `Dia ${part.day - 1} finalizado com sucesso! Toda a rotina diária foi cumprida. Energia restaurada.`;
+        
+        part.notifications.unshift({ 
+          type: logs.length > 0 ? 'warning' : 'success', 
+          text: msgStr 
+        });
+      }
+      
+      part.lastDayTransitionDate = todayStr;
+      await db.saveParticipant(part);
+    }
+  } catch (err) {
+    console.error('Erro na transição de dia automática:', err);
+  }
+}
+
+async function getParticipantAndSyncDay(pId) {
+  const p = await db.getParticipantById(pId);
+  if (p) {
+    await checkAndAdvanceDaysAutomatically(p);
+  }
+  return p;
 }
 
 let isAutoCycling = false;
@@ -672,141 +809,13 @@ app.get('/api/participant/:id', authenticateToken, async (req, res) => {
   const pId = req.params.id;
 
   try {
-    const p = await db.getParticipantById(pId);
+    const p = await getParticipantAndSyncDay(pId);
     if (!p) return res.status(404).json({ message: 'Participante não encontrado.' });
 
     // Segurança: Admin pode ver tudo; Participante comum apenas a si mesmo
     if (req.user.role !== 'admin' && p.userId !== req.user.id) {
       return res.status(403).json({ message: 'Acesso não autorizado a esta família.' });
     }
-
-    // Virar o dia automaticamente se o dia real calendário mudou (virada às 00h)
-    const checkAndAdvanceDaysAutomatically = async (part) => {
-      try {
-        const now = new Date();
-        const todayStr = getSaoPauloDateString(now); // AAAA-MM-DD no fuso de SP
-        
-        part.day = part.day || 1;
-        part.lastDayTransitionDate = part.lastDayTransitionDate || todayStr;
-        part.tasksCompletedToday = part.tasksCompletedToday || [];
-        part.ateToday = part.ateToday || false;
-        part.foodStockBasic = part.foodStockBasic !== undefined ? part.foodStockBasic : 0;
-        part.foodStockHealthy = part.foodStockHealthy !== undefined ? part.foodStockHealthy : 5;
-        part.foodStockPremium = part.foodStockPremium !== undefined ? part.foodStockPremium : 0;
-
-        if (part.lastDayTransitionDate !== todayStr) {
-          if (part.day < 30) {
-            console.log(`⏰ [AutoDay] Virando dia automático para ${part.id}. De ${part.day} para ${part.day + 1}`);
-            let logs = [];
-            
-            // 1. Limpeza (clean_house)
-            const cleanedToday = part.tasksCompletedToday.includes('clean_house');
-            if (!cleanedToday) {
-              part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 15);
-              part.indicators.health = Math.max(0, part.indicators.health - 3);
-              part.indicators.happiness = Math.max(0, part.indicators.happiness - 3);
-              logs.push('A casa não foi limpa hoje (Limpeza: -15%, Saúde: -3%, Felicidade: -3%)');
-            }
-
-            // 2. Pratos (wash_dishes)
-            const washedToday = part.tasksCompletedToday.includes('wash_dishes');
-            if (!washedToday) {
-              part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 10);
-              part.indicators.health = Math.max(0, part.indicators.health - 2);
-              part.indicators.happiness = Math.max(0, part.indicators.happiness - 2);
-              logs.push('A pia/louça não foi lavada hoje (Limpeza: -10%, Saúde: -2%, Felicidade: -2%)');
-            }
-
-            // 3. Roupas (wash_clothes)
-            const clothesWashedToday = part.tasksCompletedToday.includes('wash_clothes');
-            if (!clothesWashedToday) {
-              part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 10);
-              part.indicators.health = Math.max(0, part.indicators.health - 1);
-              part.indicators.happiness = Math.max(0, part.indicators.happiness - 2);
-              logs.push('As roupas não foram lavadas hoje (Limpeza: -10%, Saúde: -1%, Felicidade: -2%)');
-            }
-
-            // 4. Alimentação
-            const preparedToday = part.tasksCompletedToday.some(t => t.startsWith('prepare_meals'));
-            const hasAte = part.ateToday || preparedToday;
-
-            if (!hasAte) {
-              part.indicators.health = 10;
-              part.indicators.happiness = 10;
-              logs.push('⚠️ A família ficou com FOME hoje! Saúde e Felicidade desceram para o nível mais baixo (10%)!');
-            }
-
-            // 4. Consequências de Limpeza Baixa (Quebras Estruturais - Probabilidade Dinâmica)
-            const cleanVal = part.indicators.cleanliness || 0;
-            const breakdownChance = 0.05 + 0.90 * (1.0 - (cleanVal / 100.0));
-            if (Math.random() < breakdownChance) {
-              const breakdownTemplates = [
-                { id: 'pipe_leak', name: 'Vazamento no Banheiro', repairCost: 300, description: 'Um cano estourou na parede do banheiro, molhando a casa e exigindo encanador de emergência.' },
-                { id: 'fridge_repair', name: 'Geladeira Queimou', repairCost: 450, description: 'A geladeira parou de funcionar e os alimentos correm risco de estragar. Conserto imediato necessário.' }
-              ];
-              const choice = breakdownTemplates[Math.floor(Math.random() * breakdownTemplates.length)];
-              if (!part.activeEvents.some(e => e.id === choice.id)) {
-                part.activeEvents.push({
-                  id: choice.id,
-                  name: choice.name,
-                  description: choice.description,
-                  impact: 0,
-                  tip: 'Problemas na estrutura da casa reduzem a limpeza e o bem-estar da família. Resolva-os o quanto antes!',
-                  weekTriggered: part.week,
-                  isBreakdown: true,
-                  repairCost: choice.repairCost
-                });
-                part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 10);
-                part.indicators.happiness = Math.max(0, part.indicators.happiness - 5);
-                logs.push(`🔧 Ocorreu um '${choice.name}' (Chance: ${Math.round(breakdownChance*100)}%)! Chame manutenção.`);
-              }
-            }
-
-            // 5. Consequências de Saúde/Felicidade Baixa (Doenças - Probabilidade Dinâmica)
-            const healthVal = part.indicators.health || 0;
-            const happyVal = part.indicators.happiness || 0;
-            const avgHealthHappy = (healthVal + happyVal) / 2.0;
-            const diseaseChance = 0.05 + 0.90 * (1.0 - (avgHealthHappy / 100.0));
-            if (Math.random() < diseaseChance) {
-              const diseaseTemplates = [
-                { id: 'gripe', name: 'Gripe Comum', description: 'Febre baixa, coriza e dor no corpo. Exige repouso e antitérmico.', requiredMedicine: 'Antitérmico e Vitamina C', medicineCost: 45, recoveryWeeks: 1, healthImpact: -15, happinessImpact: -10 },
-                { id: 'infeccao_intestinal', name: 'Infecção Intestinal', description: 'Causada por alimentação inadequada ou falta de higiene na cozinha.', requiredMedicine: 'Antibiótico e Soro de Reidratação', medicineCost: 80, recoveryWeeks: 1, healthImpact: -25, happinessImpact: -15 },
-                { id: 'estresse_extremo', name: 'Cansaço Extremo / Estresse', description: 'Esgotamento físico e mental devido a excesso de preocupação financeira.', requiredMedicine: 'Polivitamínico e Lazer', medicineCost: 60, recoveryWeeks: 2, healthImpact: -20, happinessImpact: -25 },
-                { id: 'alergia_pele', name: 'Alergia de Pele', description: 'Reação alérgica causada por poeira ou acúmulo de sujeira na residência.', requiredMedicine: 'Pomada Antialérgica', medicineCost: 35, recoveryWeeks: 1, healthImpact: -10, happinessImpact: -8 }
-              ];
-              const choice = diseaseTemplates[Math.floor(Math.random() * diseaseTemplates.length)];
-              if (!part.activeIllnesses.some(i => i.id === choice.id)) {
-                part.activeIllnesses.push({ ...choice });
-                part.indicators.health = Math.max(0, part.indicators.health + choice.healthImpact);
-                part.indicators.happiness = Math.max(0, part.indicators.happiness + choice.happinessImpact);
-                logs.push(`🤒 Um membro da família contraiu '${choice.name}' (Chance: ${Math.round(diseaseChance*100)}%)! Vá à Farmácia.`);
-              }
-            }
-
-            part.day += 1;
-            part.tasksCompletedToday = [];
-            part.ateToday = false;
-            part.energy = 100;
-
-            const msgStr = logs.length > 0 
-              ? `Dia ${part.day - 1} finalizado. Ocorrências: ${logs.join('; ')}`
-              : `Dia ${part.day - 1} finalizado com sucesso! Toda a rotina diária foi cumprida. Energia restaurada.`;
-            
-            part.notifications.unshift({ 
-              type: logs.length > 0 ? 'warning' : 'success', 
-              text: msgStr 
-            });
-          }
-          
-          part.lastDayTransitionDate = todayStr;
-          await db.saveParticipant(part);
-        }
-      } catch (err) {
-        console.error('Erro na transição de dia automática:', err);
-      }
-    };
-
-    await checkAndAdvanceDaysAutomatically(p);
 
     const historySnaps = await db.getHistory(pId);
     p.history = historySnaps;
@@ -841,7 +850,7 @@ app.post('/api/participant/:id/pay-bill', authenticateToken, async (req, res) =>
   const { billId, isOverdue } = req.body;
 
   try {
-    const p = await db.getParticipantById(pId);
+    const p = await getParticipantAndSyncDay(pId);
     if (!p) return res.status(404).json({ message: 'Participante não encontrado.' });
 
     const billList = isOverdue ? p.overdueBills : p.unpaidBills;
@@ -883,7 +892,7 @@ app.post('/api/participant/:id/execute-task', authenticateToken, async (req, res
   const { taskId } = req.body;
 
   try {
-    const p = await db.getParticipantById(pId);
+    const p = await getParticipantAndSyncDay(pId);
     if (!p) return res.status(404).json({ message: 'Erro ao carregar dados do participante.' });
 
     const task = DEFAULT_TASKS.find(t => t.id === taskId);
@@ -960,7 +969,7 @@ app.post('/api/participant/:id/execute-leisure', authenticateToken, async (req, 
   const { optionId } = req.body;
 
   try {
-    const p = await db.getParticipantById(pId);
+    const p = await getParticipantAndSyncDay(pId);
     if (!p) return res.status(404).json({ message: 'Participante não encontrado.' });
 
     const opt = LEISURE_OPTIONS[optionId];
@@ -1003,7 +1012,7 @@ app.post('/api/participant/:id/repair-breakdown', authenticateToken, async (req,
   const { eventId } = req.body;
 
   try {
-    const p = await db.getParticipantById(pId);
+    const p = await getParticipantAndSyncDay(pId);
     if (!p) return res.status(404).json({ message: 'Participante não encontrado.' });
 
     const evtIdx = p.activeEvents.findIndex(e => e.id === eventId && e.isBreakdown);
@@ -1036,7 +1045,7 @@ app.post('/api/participant/:id/request-loan', authenticateToken, async (req, res
   const { amount, term, justification } = req.body;
 
   try {
-    const p = await db.getParticipantById(pId);
+    const p = await getParticipantAndSyncDay(pId);
     const campaign = await db.getActiveCampaign();
     if (!p || !campaign) return res.status(404).json({ message: 'Dados não encontrados.' });
 
@@ -1087,7 +1096,7 @@ app.post('/api/participant/:id/invest', authenticateToken, async (req, res) => {
   const { productId, amount } = req.body;
 
   try {
-    const p = await db.getParticipantById(pId);
+    const p = await getParticipantAndSyncDay(pId);
     if (amount <= 0 || p.balance < amount) return res.status(400).json({ message: 'Saldo insuficiente.' });
 
     p.balance -= amount;
@@ -1106,7 +1115,7 @@ app.post('/api/participant/:id/withdraw-investment', authenticateToken, async (r
   const { productId, amount } = req.body;
 
   try {
-    const p = await db.getParticipantById(pId);
+    const p = await getParticipantAndSyncDay(pId);
     const invested = p.investments[productId] || 0;
     if (amount <= 0 || invested < amount) return res.status(400).json({ message: 'Saldo insuficiente.' });
 
@@ -1135,7 +1144,7 @@ app.post('/api/participant/:id/manage-reserve', authenticateToken, async (req, r
   const { action, amount } = req.body;
 
   try {
-    const p = await db.getParticipantById(pId);
+    const p = await getParticipantAndSyncDay(pId);
 
     if (action === 'deposit') {
       if (amount <= 0 || p.balance < amount) return res.status(400).json({ message: 'Saldo insuficiente.' });
@@ -1162,7 +1171,7 @@ app.post('/api/participant/:id/extra-income', authenticateToken, async (req, res
   const { activityId } = req.body;
 
   try {
-    const p = await db.getParticipantById(pId);
+    const p = await getParticipantAndSyncDay(pId);
     const campaign = await db.getActiveCampaign();
     if (!p || !campaign) return res.status(404).json({ message: 'Dados não encontrados.' });
 
@@ -1242,7 +1251,7 @@ app.post('/api/participant/:id/custom-income', authenticateToken, async (req, re
   const { name, description, estimatedReward } = req.body;
 
   try {
-    const p = await db.getParticipantById(pId);
+    const p = await getParticipantAndSyncDay(pId);
     const newRequest = {
       id: 'custom_inc_' + Date.now(),
       name,
@@ -1271,7 +1280,7 @@ app.delete('/api/participant/:id', authenticateToken, async (req, res) => {
   const pId = req.params.id;
 
   try {
-    const p = await db.getParticipantById(pId);
+    const p = await getParticipantAndSyncDay(pId);
     if (!p) {
       return res.status(404).json({ message: 'Participante não encontrado.' });
     }
@@ -1305,7 +1314,7 @@ app.post('/api/participant/:id/market-food', authenticateToken, async (req, res)
   const { option } = req.body;
 
   try {
-    const p = await db.getParticipantById(pId);
+    const p = await getParticipantAndSyncDay(pId);
     const campaign = await db.getActiveCampaign();
 
     const diff = INITIAL_DIFFICULTIES[campaign.difficulty];
@@ -1371,7 +1380,7 @@ app.post('/api/participant/:id/next-day', authenticateToken, async (req, res) =>
   const pId = req.params.id;
 
   try {
-    const p = await db.getParticipantById(pId);
+    const p = await getParticipantAndSyncDay(pId);
     if (!p) return res.status(404).json({ message: 'Participante não encontrado.' });
 
     // Fallbacks para novos campos
@@ -1518,7 +1527,7 @@ app.post('/api/participant/:id/buy-medicine', authenticateToken, async (req, res
   const { diseaseId } = req.body;
 
   try {
-    const p = await db.getParticipantById(pId);
+    const p = await getParticipantAndSyncDay(pId);
     const illIdx = p.activeIllnesses.findIndex(i => i.id === diseaseId);
     if (illIdx === -1) return res.status(400).json({ message: 'Doença não ativa.' });
 
