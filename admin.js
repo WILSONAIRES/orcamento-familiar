@@ -106,6 +106,26 @@ export function initAdminView() {
       await exportRankingToCSV();
     });
   }
+
+  const btnResetDaily = document.getElementById('btn-admin-reset-daily');
+  if (btnResetDaily) {
+    btnResetDaily.addEventListener('click', async () => {
+      const confirmAction = confirm("⚠️ ATENÇÃO: Tem certeza que deseja zerar as tarefas de hoje e restaurar a energia para 100% para todas as famílias ativas? Isso serve para reverter falhas de virada e dar uma nova chance para os alunos hoje.");
+      if (!confirmAction) return;
+
+      try {
+        btnResetDaily.disabled = true;
+        const res = await engine.apiCall('/api/admin/reset-daily-tasks', 'POST');
+        alert(res.message || "Tarefas diárias zeradas com sucesso!");
+        await refreshAdminTab('admin-dashboard');
+      } catch (err) {
+        console.error(err);
+        alert("Erro ao zerar tarefas diárias: " + err.message);
+      } finally {
+        btnResetDaily.disabled = false;
+      }
+    });
+  }
 }
 
 // Atualizar aba específica

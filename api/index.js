@@ -1930,6 +1930,39 @@ app.post('/api/admin/advance-all-cycles', authenticateToken, requireAdmin, async
   }
 });
 
+// Zerar tarefas diárias de todos os participantes ativos (Ajuste de virada)
+app.post('/api/admin/reset-daily-tasks', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const list = await db.getParticipants();
+    const activeOnes = list.filter(p => p.finished === 0);
+    const todayStr = getSaoPauloDateString();
+
+    let count = 0;
+    for (const p of activeOnes) {
+      p.tasksCompletedToday = [];
+      p.ateToday = false;
+      p.energy = 100;
+      p.lastDayTransitionDate = todayStr;
+      await db.saveParticipant(p);
+      count++;
+    }
+
+    // Registro de Auditoria
+    await db.addAuditLog({
+      id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 3),
+      timestamp: new Date().toISOString(),
+      username: req.user.name,
+      action: 'Tarefas Diárias Zeradas',
+      details: `O diretor forçou o reset das tarefas diárias e restauração de energia para todas as ${count} famílias.`
+    });
+
+    res.json({ success: true, message: `Tarefas diárias zeradas e energia restaurada para todas as ${count} famílias ativas!` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro ao zerar tarefas diárias de todas as famílias.' });
+  }
+});
+
 // Aprovar Empréstimo
 app.post('/api/admin/approve-loan', authenticateToken, requireAdmin, async (req, res) => {
   const { participantId, loanId, action, modifiedParams } = req.body;
