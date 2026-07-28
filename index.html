@@ -353,6 +353,7 @@
           </button>
           <button class="admin-nav-btn" data-tab="admin-participants">👥 Cadastrar Alunos</button>
           <button class="admin-nav-btn" data-tab="admin-audit">📜 Logs do Sistema</button>
+          <button class="admin-nav-btn" data-tab="admin-manual">📖 Manual do Simulador</button>
         </nav>
       </aside>
 
@@ -652,6 +653,111 @@
                   <!-- Populado via JS -->
                 </tbody>
               </table>
+            </div>
+          </div>
+          </div>
+        </div>
+
+        <!-- Aba 6: Manual de Utilização -->
+        <div id="admin-manual" class="admin-tab-content">
+          <div class="content-header">
+            <h2>📖 Manual de Utilização do Simulador</h2>
+            <p>Guia completo de apoio pedagógico para alunos e diretores da Especialidade de Orçamento Familiar</p>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+            <!-- Guia do Jogador (Aluno) -->
+            <div class="form-section glass-panel">
+              <h3 style="color: #60a5fa; border-bottom: 1px solid rgba(96,165,250,0.15); padding-bottom: 8px; margin-bottom:12px;">👨‍🎓 Guia do Aluno (Jogador)</h3>
+              
+              <h4 style="margin: 12px 0 6px 0; color:#93c5fd;">🧹 Rotina Doméstica Diária</h4>
+              <p style="font-size:0.85rem; line-height:1.45; color:var(--text-muted); margin-bottom: 8px;">
+                Os alunos gerenciam uma família fictícia. Cada dia que passa na simulação exige a realização das seguintes tarefas básicas:
+              </p>
+              <ul style="font-size:0.82rem; color:var(--text-muted); margin-left: 20px; line-height: 1.5;">
+                <li><strong>Cozinhar/Alimentar:</strong> Fogão da Cozinha. Exige comprar ingredientes no Supermercado. Negligenciar faz a saúde/felicidade despencar para 10%.</li>
+                <li><strong>Limpar a Casa:</strong> Faxina no Banheiro/Sala. Consome 1 carga de kit de limpeza.</li>
+                <li><strong>Lavar Louça:</strong> Pia da Cozinha. Consome 1 carga de kit de limpeza.</li>
+                <li><strong>Lavar Roupas:</strong> Oficina/Área de Serviço. Consome 1 carga de kit de limpeza.</li>
+                <li><strong>Dormir / Virar o Dia:</strong> Salva as tarefas concluídas e recupera a energia física para 100% para o novo dia.</li>
+              </ul>
+
+              <h4 style="margin: 15px 0 6px 0; color:#93c5fd;">💰 Economia, Contas e Investimentos</h4>
+              <p style="font-size:0.85rem; line-height:1.45; color:var(--text-muted); margin-bottom: 8px;">
+                O participante recebe um salário no início de cada mês e precisa alocar os recursos de forma inteligente:
+              </p>
+              <ul style="font-size:0.82rem; color:var(--text-muted); margin-left: 20px; line-height: 1.5;">
+                <li><strong>Contas de Consumo:</strong> Água, Luz, Internet, Gás e Aluguel chegam na virada de ciclo mensal. Pagar no Banco ou na Oficina antes do vencimento para evitar cortes de serviços, juros e multas de atraso.</li>
+                <li><strong>Reserva de Emergência:</strong> Guardar dinheiro na Poupança do Banco para emergências.</li>
+                <li><strong>Investimentos:</strong> Aplicar excedentes em CDB, Tesouro Direto ou Fundo de Ações para fazer o patrimônio render.</li>
+                <li><strong>Empréstimos Bancários:</strong> Se o saldo zerar, o aluno pode pedir empréstimo, que passará por auditoria e aprovação do Diretor.</li>
+              </ul>
+
+              <h4 style="margin: 15px 0 6px 0; color:#93c5fd;">⚡ Gestão de Energia e Imprevistos</h4>
+              <ul style="font-size:0.82rem; color:var(--text-muted); margin-left: 20px; line-height: 1.5;">
+                <li><strong>Energia Limitada:</strong> Chores e trabalhos consomem energia. Se zerar, o aluno pode <strong>"Tirar uma Soneca" (Grátis)</strong> na Sala de Estar para recuperar +25% de energia física.</li>
+                <li><strong>Doenças (Farmácia):</strong> Se a casa ficar suja ou a saúde cair, a família pode contrair gripes ou infecções. O aluno deve ir à Farmácia comprar remédios, senão os indicadores continuarão caindo diariamente.</li>
+                <li><strong>Quebras (Manutenção):</strong> Aparelhos queimados ou vazamentos geram alertas pulsing vermelhos nos cômodos. Pagar o reparo na Oficina para cessar os danos.</li>
+              </ul>
+            </div>
+
+            <!-- Guia do Administrador (Diretor) -->
+            <div class="form-section glass-panel">
+              <h3 style="color: #34d399; border-bottom: 1px solid rgba(52,211,153,0.15); padding-bottom: 8px; margin-bottom:12px;">👨‍✈️ Guia do Diretor (Administrador)</h3>
+              
+              <h4 style="margin: 12px 0 6px 0; color:#a7f3d0;">📥 Fila de Aprovações</h4>
+              <p style="font-size:0.85rem; line-height:1.45; color:var(--text-muted); margin-bottom: 8px;">
+                Gerencie solicitações enviadas pelos alunos:
+              </p>
+              <ul style="font-size:0.82rem; color:var(--text-muted); margin-left: 20px; line-height: 1.5;">
+                <li><strong>Empréstimos:</strong> Analise o valor solicitado, taxa de juros e prazo de parcelas. O diretor pode alterar os juros/parcelas antes de aprovar, ou simplesmente rejeitar se considerar inviável.</li>
+                <li><strong>Bicos/Trabalhos Customizados:</strong> Alunos podem criar bicos personalizados (ex: vender doces, ajudar vizinho). Avalie a justificativa e o valor e decida se aprova ou rejeita.</li>
+              </ul>
+
+              <h4 style="margin: 15px 0 6px 0; color:#a7f3d0;">⚙️ Parametrização da Especialidade</h4>
+              <p style="font-size:0.85rem; line-height:1.45; color:var(--text-muted); margin-bottom: 8px;">
+                Controle o ecossistema financeiro na aba "Parâmetros do Ciclo":
+              </p>
+              <ul style="font-size:0.82rem; color:var(--text-muted); margin-left: 20px; line-height: 1.5;">
+                <li><strong>Dificuldade:</strong> Fácil (salário alto, contas baixas), Médio (equilibrado) ou Difícil (salário baixo, contas caras e imprevistos frequentes).</li>
+                <li><strong>Pesos dos Indicadores:</strong> Altere a relevância de Saúde, Felicidade, Finanças ou Limpeza na nota final.</li>
+                <li><strong>Metas Globais:</strong> Defina os objetivos do ciclo (ex: acumular R$ 1.500 em reserva, terminar sem empréstimos).</li>
+              </ul>
+
+              <h4 style="margin: 15px 0 6px 0; color:#a7f3d0;">⏰ Fechamento de Ciclo (Virada de Mês)</h4>
+              <p style="font-size:0.85rem; line-height:1.45; color:var(--text-muted); margin-bottom: 8px;">
+                Na aba "Dashboard & Ranking", clique em **"Virar Ciclo de Todos"** ou escolha um aluno específico para virar o mês dele:
+              </p>
+              <ul style="font-size:0.82rem; color:var(--text-muted); margin-left: 20px; line-height: 1.5;">
+                <li>O sistema consolida a nota de performance do mês e salva um histórico permanente.</li>
+                <li>Gera o boleto de aluguel e as novas contas de consumo do mês seguinte.</li>
+                <li>Corta a luz/água e aplica multas se contas antigas estiverem vencidas.</li>
+                <li>Concede o novo salário na conta corrente.</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Critérios de Pontuação -->
+          <div class="form-section glass-panel" style="border-color: rgba(251, 113, 133, 0.2);">
+            <h3 style="color: #fb7185; border-bottom: 1px solid rgba(251,113,133,0.15); padding-bottom: 8px; margin-bottom:12px;">🏆 Entendendo os Critérios de Pontuação e Ranking</h3>
+            <p style="font-size:0.88rem; line-height:1.5; color:var(--text-muted); margin-bottom: 12px;">
+              O ranking classifica as famílias de forma meritocrática com base na <strong>Proposta C (Híbrido Equilibrado)</strong>, garantindo que alunos antigos e esforçados sejam recompensados, enquanto os que negligenciam a rotina caem posições. A fórmula pontua da seguinte forma:
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; font-size:0.82rem; color:var(--text-muted);">
+              <div style="background: rgba(255,255,255,0.02); padding:1rem; border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
+                <strong style="color: #fb7185; display:block; margin-bottom: 4px;">📅 Bônus de Ciclos (+150 pts)</strong>
+                Avançar cada mês completo com sucesso concede **150 pontos fixos** acumulativos: <br>
+                <em>Pontos = (Mês Atual - 1) × 150</em>.
+              </div>
+              <div style="background: rgba(255,255,255,0.02); padding:1rem; border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
+                <strong style="color: #fb7185; display:block; margin-bottom: 4px;">📊 Qualidade de Vida (Até 800 pts)</strong>
+                Calcula a média atual dos indicadores de Saúde, Felicidade, Limpeza e Finanças e multiplica por 8. <br>
+                <em>Pontos = Média(Indicadores) × 8</em>.
+              </div>
+              <div style="background: rgba(255,255,255,0.02); padding:1rem; border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
+                <strong style="color: #fb7185; display:block; margin-bottom: 4px;">🎯 Objetivos Cumpridos (+Metas)</strong>
+                Concluir metas do Diretor (ex: "Sem Dívidas", "Investidor") adiciona os pontos do objetivo na hora (ex: +150 ou +200 pts por meta).
+              </div>
             </div>
           </div>
         </div>

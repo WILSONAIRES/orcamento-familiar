@@ -126,6 +126,8 @@ export async function refreshAdminTab(tabId) {
     case 'admin-audit':
       await renderAuditLogs();
       break;
+    case 'admin-manual':
+      break;
   }
 }
 
