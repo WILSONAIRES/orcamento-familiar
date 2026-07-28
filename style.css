@@ -111,6 +111,7 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--bg-header);
   border-bottom: 1px solid var(--border-color);
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   position: sticky;
   top: 0;
   z-index: 1000;
@@ -718,6 +719,7 @@ h1, h2, h3, h4, h5, h6 {
   height: 100%;
   background: rgba(5, 8, 16, 0.75);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: none; /* Controlado via JS */
   align-items: center;
   justify-content: center;
@@ -1359,6 +1361,7 @@ h1, h2, h3, h4, h5, h6 {
   height: 100%;
   background: radial-gradient(circle at center, rgba(11, 15, 25, 0.95) 0%, rgba(5, 8, 16, 0.98) 100%);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;

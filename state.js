@@ -3,6 +3,14 @@
  * Cliente de Estado Assíncrono (Comunicação com API Express + SQLite)
  */
 
+// Safe localStorage wrapper for older iOS Safari (Private Browsing compatibility)
+const safeStorage = {
+  getItem: (key) => { try { return window.localStorage.getItem(key); } catch(e) { return null; } },
+  setItem: (key, val) => { try { window.localStorage.setItem(key, val); } catch(e) {} },
+  removeItem: (key) => { try { window.localStorage.removeItem(key); } catch(e) {} }
+};
+const localStorage = safeStorage;
+
 const STORAGE_KEY_TOKEN = 'mf_jwt_token';
 const STORAGE_KEY_USER = 'mf_user_data';
 const STORAGE_KEY_ACTIVE_PART = 'mf_active_part_id';

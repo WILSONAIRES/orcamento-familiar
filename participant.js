@@ -11,6 +11,14 @@ import {
   INITIAL_DIFFICULTIES
 } from './mockData.js';
 
+// Safe localStorage wrapper for older iOS Safari (Private Browsing compatibility)
+const safeStorage = {
+  getItem: (key) => { try { return window.localStorage.getItem(key); } catch(e) { return null; } },
+  setItem: (key, val) => { try { window.localStorage.setItem(key, val); } catch(e) {} },
+  removeItem: (key) => { try { window.localStorage.removeItem(key); } catch(e) {} }
+};
+const localStorage = safeStorage;
+
 let activeOpenModalId = null;
 let currentInvProductAction = null; // 'cdb', 'poupanca', etc.
 let currentInvActionType = null;    // 'deposit' ou 'withdraw'

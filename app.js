@@ -7,6 +7,14 @@ import { engine } from './state.js';
 import { initAdminView, refreshAdminTab } from './admin.js';
 import { initParticipantView, refreshParticipantView } from './participant.js';
 
+// Safe localStorage wrapper for older iOS Safari (Private Browsing compatibility)
+const safeStorage = {
+  getItem: (key) => { try { return window.localStorage.getItem(key); } catch(e) { return null; } },
+  setItem: (key, val) => { try { window.localStorage.setItem(key, val); } catch(e) {} },
+  removeItem: (key) => { try { window.localStorage.removeItem(key); } catch(e) {} }
+};
+const localStorage = safeStorage;
+
 document.addEventListener('DOMContentLoaded', async () => {
   const authContainer = document.getElementById('auth-container');
   const formLogin = document.getElementById('form-login');
