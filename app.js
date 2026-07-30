@@ -3,9 +3,9 @@
  * Orquestrador Principal e Controlador de Acesso (Assíncrona)
  */
 
-import { engine } from './state.js';
-import { initAdminView, refreshAdminTab } from './admin.js';
-import { initParticipantView, refreshParticipantView } from './participant.js';
+import { engine } from './state.js?v=1.1';
+import { initAdminView, refreshAdminTab } from './admin.js?v=1.1';
+import { initParticipantView, refreshParticipantView } from './participant.js?v=1.1';
 
 // Safe localStorage wrapper for older iOS Safari (Private Browsing compatibility)
 const safeStorage = {

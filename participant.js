@@ -3,7 +3,7 @@
  * Lógica do Participante (Casa Virtual - Assíncrona)
  */
 
-import { engine } from './state.js';
+import { engine } from './state.js?v=1.1';
 import { 
   DEFAULT_TASKS, 
   DEFAULT_EXTRA_INCOME_ACTIVITIES, 
