@@ -277,7 +277,7 @@ function renderFormulaSimulator(participants, campaign) {
     if (campaign.goals) {
       campaign.goals.forEach(goal => {
         if (p.goalsStatus && p.goalsStatus[goal.id] === "completed") {
-          goalsBonus += goal.points;
+          goalsBonus += (goal.points !== undefined ? goal.points : 150);
         }
       });
     }

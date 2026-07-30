@@ -947,7 +947,7 @@ async function renderModalContent(modalId) {
           </div>
           <div style="text-align:right;">
             <span class="badge-${classStr === 'completed' ? 'success' : classStr === 'failed' ? 'danger' : 'warning'}">${statusStr}</span>
-            <span style="display:block; font-size:0.75rem; font-weight:bold; margin-top:2px;">+${goal.points} pts</span>
+            <span style="display:block; font-size:0.75rem; font-weight:bold; margin-top:2px;">+${goal.points !== undefined ? goal.points : 150} pts</span>
           </div>
         `;
         listGoals.appendChild(li);

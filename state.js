@@ -518,7 +518,7 @@ class SimulationEngine {
     if (campaign && campaign.goals) {
       campaign.goals.forEach(goal => {
         if (participant.goalsStatus && participant.goalsStatus[goal.id] === "completed") {
-          goalsBonus += goal.points;
+          goalsBonus += (goal.points !== undefined ? goal.points : 150);
         }
       });
     }

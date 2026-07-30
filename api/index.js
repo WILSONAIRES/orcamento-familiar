@@ -183,10 +183,59 @@ async function checkAndAdvanceDaysAutomatically(part) {
   }
 }
 
+// Avaliar metas/objetivos em tempo real
+function evaluateGoalsRealTime(p, campaign) {
+  if (!p || !campaign || !campaign.goals) return false;
+  p.goalsStatus = p.goalsStatus || {};
+  let changed = false;
+
+  campaign.goals.forEach(goal => {
+    const targetType = goal.targetType || goal.targetField;
+    const targetValue = goal.targetValue || 0;
+    
+    const oldStatus = p.goalsStatus[goal.id] || "in_progress";
+    let status = oldStatus;
+    
+    // 1. Reserva de Emergência
+    if (targetType === "reserve" || goal.id === "goal_reserve" || goal.id === "reserve_creator") {
+      status = p.reserve >= targetValue ? "completed" : "in_progress";
+    }
+    
+    // 2. Investimentos
+    if (targetType === "investments" || goal.id === "wise_investor") {
+      const totalInvested = Object.values(p.investments || {}).reduce((s, v) => s + v, 0);
+      status = totalInvested >= targetValue ? "completed" : "in_progress";
+    }
+
+    // 3. Sem empréstimos contratados
+    if (targetType === "no_loans" || goal.id === "no_loans") {
+      status = p.loans && p.loans.length > 0 ? "failed" : "in_progress";
+    }
+
+    // 4. Sem contas atrasadas (Nome Limpo)
+    if (targetType === "overdueBillsCount" || goal.id === "goal_no_overdue") {
+      status = p.overdueBills && p.overdueBills.length > 0 ? "failed" : "in_progress";
+    }
+
+    if (status !== oldStatus) {
+      p.goalsStatus[goal.id] = status;
+      changed = true;
+    }
+  });
+
+  return changed;
+}
+
 async function getParticipantAndSyncDay(pId) {
   const p = await db.getParticipantById(pId);
   if (p) {
     await checkAndAdvanceDaysAutomatically(p);
+    
+    const campaign = await db.getActiveCampaign();
+    const goalsChanged = evaluateGoalsRealTime(p, campaign);
+    if (goalsChanged) {
+      await db.saveParticipant(p);
+    }
   }
   return p;
 }
@@ -1812,11 +1861,11 @@ async function advanceParticipantWeekLogic(pId, adminName) {
       if (status !== "in_progress") {
         p.goalsStatus[goal.id] = status;
         if (status === 'completed') {
-          p.indicators.score = (p.indicators.score || 0) + goal.points;
+          p.indicators.score = (p.indicators.score || 0) + (goal.points !== undefined ? goal.points : 150);
         }
         p.notifications.unshift({
           type: status === 'completed' ? 'success' : 'danger',
-          text: `Objetivo '${goal.name}' ${status === 'completed' ? 'Concluído! (+' + goal.points + ' pts)' : 'Falhou!'}`
+          text: `Objetivo '${goal.name}' ${status === 'completed' ? 'Concluído! (+' + (goal.points !== undefined ? goal.points : 150) + ' pts)' : 'Falhou!'}`
         });
       }
     }
