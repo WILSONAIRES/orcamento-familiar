@@ -1598,6 +1598,140 @@ app.post('/api/participant/:id/buy-medicine', authenticateToken, async (req, res
   }
 });
 
+// Devolver Dízimo (Igreja)
+app.post('/api/participant/:id/church-tithe', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+  try {
+    const p = await getParticipantAndSyncDay(pId);
+    if (!p) return res.status(404).json({ message: 'Participante não encontrado.' });
+
+    p.indicators = p.indicators || {};
+    if (p.indicators.tithesReturnedThisMonth) {
+      return res.status(400).json({ message: 'Você já devolveu o dízimo deste mês!' });
+    }
+
+    const titheCost = Math.round(p.salary * 0.10);
+    if (p.balance < titheCost) {
+      return res.status(400).json({ message: 'Saldo insuficiente para a devolução do dízimo.' });
+    }
+
+    p.balance -= titheCost;
+    p.indicators.tithesReturnedThisMonth = true;
+    p.indicators.tithesReturnedCount = (p.indicators.tithesReturnedCount || 0) + 1;
+    p.indicators.happiness = Math.min(100, p.indicators.happiness + 15);
+
+    p.notifications.unshift({ 
+      type: 'success', 
+      text: `⛪ Fidelidade: Você devolveu seu Dízimo de R$ ${titheCost.toFixed(2)} com fidelidade! (+15% Felicidade)` 
+    });
+
+    await db.saveParticipant(p);
+    res.json({ success: true, message: 'Dízimo devolvido com sucesso!' });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Erro ao devolver dízimo.' });
+  }
+});
+
+// Entregar Oferta (Igreja)
+app.post('/api/participant/:id/church-offering', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+  try {
+    const p = await getParticipantAndSyncDay(pId);
+    if (!p) return res.status(404).json({ message: 'Participante não encontrado.' });
+
+    p.indicators = p.indicators || {};
+    const offeringCost = 30; // Valor fixo de oferta planejado
+    if (p.balance < offeringCost) {
+      return res.status(400).json({ message: 'Saldo insuficiente para a entrega da oferta.' });
+    }
+
+    p.balance -= offeringCost;
+    p.indicators.offeringsReturnedCount = (p.indicators.offeringsReturnedCount || 0) + 1;
+    p.indicators.happiness = Math.min(100, p.indicators.happiness + 5);
+
+    p.notifications.unshift({ 
+      type: 'success', 
+      text: `⛪ Generosidade: Você entregou uma oferta de R$ ${offeringCost.toFixed(2)}! (+5% Felicidade)` 
+    });
+
+    await db.saveParticipant(p);
+    res.json({ success: true, message: 'Oferta entregue com sucesso!' });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Erro ao entregar oferta.' });
+  }
+});
+
+// Poupança Campori (Guardar / Retirar)
+app.post('/api/participant/:id/campori-savings', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+  const { action, amount } = req.body;
+
+  try {
+    const p = await getParticipantAndSyncDay(pId);
+    if (!p) return res.status(404).json({ message: 'Participante não encontrado.' });
+
+    p.indicators = p.indicators || {};
+    p.indicators.camporiSavings = p.indicators.camporiSavings || 0;
+
+    const val = parseFloat(amount);
+    if (isNaN(val) || val <= 0) {
+      return res.status(400).json({ message: 'Valor inválido.' });
+    }
+
+    if (action === 'deposit') {
+      if (p.balance < val) return res.status(400).json({ message: 'Saldo insuficiente na conta principal.' });
+      p.balance -= val;
+      p.indicators.camporiSavings += val;
+      p.notifications.unshift({ type: 'success', text: `Você guardou R$ ${val.toFixed(2)} na poupança do Campori DSA.` });
+    } else if (action === 'withdraw') {
+      if (p.indicators.camporiSavings < val) return res.status(400).json({ message: 'Saldo insuficiente na poupança do Campori.' });
+      p.indicators.camporiSavings -= val;
+      p.balance += val;
+      p.notifications.unshift({ type: 'warning', text: `Você resgatou R$ ${val.toFixed(2)} da poupança do Campori para a conta principal.` });
+    } else {
+      return res.status(400).json({ message: 'Ação inválida.' });
+    }
+
+    await db.saveParticipant(p);
+    res.json({ success: true, message: 'Operação de poupança Campori realizada!' });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Erro na poupança Campori.' });
+  }
+});
+
+// Pagar Inscrição do Campori DSA
+app.post('/api/participant/:id/campori-pay', authenticateToken, async (req, res) => {
+  const pId = req.params.id;
+  try {
+    const p = await getParticipantAndSyncDay(pId);
+    if (!p) return res.status(404).json({ message: 'Participante não encontrado.' });
+
+    p.indicators = p.indicators || {};
+    p.indicators.camporiSavings = p.indicators.camporiSavings || 0;
+
+    if (p.indicators.camporiPaid) {
+      return res.status(400).json({ message: 'A inscrição do Campori já está paga!' });
+    }
+
+    if (p.indicators.camporiSavings < 2000) {
+      return res.status(400).json({ message: 'Você precisa de pelo menos R$ 2.000,00 guardados na poupança do Campori para pagar a inscrição.' });
+    }
+
+    p.indicators.camporiSavings -= 2000;
+    p.indicators.camporiPaid = true;
+
+    p.notifications.unshift({ 
+      type: 'success', 
+      text: '🎪 CAMPORI DSA: Inscrição confirmada e paga com sucesso! (+300 pontos de especialidade)' 
+    });
+
+    await db.saveParticipant(p);
+    res.json({ success: true, message: 'Inscrição do Campori paga com sucesso!' });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Erro ao pagar inscrição.' });
+  }
+});
+
 // --- ENCERRAMENTO DO MÊS (FUNÇÃO COMPARTILHADA DO BACKEND) ---
 
 async function advanceParticipantWeekLogic(pId, adminName) {
@@ -1875,6 +2009,8 @@ async function advanceParticipantWeekLogic(pId, adminName) {
   p.week += 1;
   p.day = 1;
   p.energy = 100;
+  p.indicators = p.indicators || {};
+  p.indicators.tithesReturnedThisMonth = false;
   p.tasksCompletedThisWeek = [];
   p.extraIncomeCompletedThisWeek = [];
 

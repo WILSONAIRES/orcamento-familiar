@@ -3,7 +3,7 @@
  * Lógica do Painel Administrativo (Assíncrona)
  */
 
-import { engine } from './state.js?v=1.1';
+import { engine } from './state.js?v=1.2';
 
 // Safe localStorage wrapper for older iOS Safari (Private Browsing compatibility)
 const safeStorage = {

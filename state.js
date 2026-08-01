@@ -523,7 +523,14 @@ class SimulationEngine {
       });
     }
 
-    return cycleBonus + statsBonus + goalsBonus;
+    // Dízimo: +100 pts por devolução
+    const tithePoints = (ind.tithesReturnedCount || 0) * 100;
+    // Oferta: +30 pts por devolução
+    const offeringPoints = (ind.offeringsReturnedCount || 0) * 30;
+    // Campori DSA Pago: +300 pts
+    const camporiPoints = ind.camporiPaid ? 300 : 0;
+
+    return cycleBonus + statsBonus + goalsBonus + tithePoints + offeringPoints + camporiPoints;
   }
 }
 

@@ -318,6 +318,13 @@
               <p>Passeios e atividades em família para manter o bem-estar.</p>
             </div>
 
+            <div class="room-card glass-panel clickable" data-modal="modal-church" id="room-card-church" style="border-color: rgba(168, 85, 247, 0.2);">
+              <span class="room-emoji">⛪</span>
+              <h3>Igreja e Fidelidade</h3>
+              <p>Devolver dízimos e ofertas voluntárias. Fortaleça o lar.</p>
+              <div class="room-status-indicator" id="room-church-indicator" style="font-size:0.75rem; margin-top:8px; font-weight:600; color:#c084fc;"></div>
+            </div>
+
             <div class="room-card glass-panel clickable" data-modal="modal-reports" id="room-card-reports">
               <span class="room-emoji">📊</span>
               <h3>Relatório & Desempenho</h3>
@@ -852,6 +859,39 @@
               </div>
             </div>
 
+            <!-- Poupança Campori DSA -->
+            <div class="glass-panel form-section" style="margin-bottom: 1.5rem; padding: 1.2rem; border-color: rgba(234, 179, 8, 0.3);">
+              <h3 style="font-size:1.1rem; margin-bottom:0.8rem; color:#eab308; display:flex; align-items:center; gap:6px;">🎪 Poupança Campori DSA</h3>
+              <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom: 0.5rem;">
+                Meta: <strong>R$ 2.000,00</strong> (Não Obrigatório).
+              </p>
+              
+              <!-- Progress Bar -->
+              <div style="width: 100%; height: 8px; border-radius: 4px; overflow: hidden; background: rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.05); margin-bottom: 6px;">
+                <div id="campori-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #eab308, #ca8a04); transition: width 0.3s ease;"></div>
+              </div>
+              <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted); margin-bottom: 12px;">
+                <span>Acumulado: <strong id="campori-saved-amount" style="color:#eab308;">R$ 0,00</strong></span>
+                <span id="campori-progress-percent">0%</span>
+              </div>
+
+              <!-- Deposit / Withdraw -->
+              <div id="campori-savings-controls">
+                <div class="form-group" style="margin-bottom: 0.8rem;">
+                  <input type="number" id="input-campori-amount" class="input-modern" placeholder="Valor R$" min="1">
+                </div>
+                <div class="form-row-multi" style="margin-bottom: 12px;">
+                  <button id="btn-campori-deposit" class="btn-primary btn-small" style="background:#ca8a04; border:none; color:white;">📥 Guardar</button>
+                  <button id="btn-campori-withdraw" class="btn-secondary btn-small">📤 Retirar</button>
+                </div>
+              </div>
+
+              <!-- Pay Registration Button -->
+              <div id="campori-payment-container">
+                <button id="btn-campori-pay" class="btn-primary btn-full" style="background:#eab308; color:#000; border:none; font-weight:bold; cursor:pointer;" disabled>🎪 Pagar Inscrição (R$ 2.000)</button>
+              </div>
+            </div>
+
             <!-- Pedido de Empréstimo -->
             <div class="glass-panel form-section" style="padding: 1.2rem;">
               <h3 style="font-size:1.1rem; margin-bottom:0.8rem;">💳 Solicitar Empréstimo</h3>
@@ -1005,6 +1045,61 @@
         <p class="intro-p">Fazer atividades recreativas em família é essencial para manter a harmonia e a saúde mental. Escolha uma atividade de lazer adequada ao seu orçamento familiar:</p>
         <div id="leisure-activities-list" class="chores-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem;">
           <!-- Populado via JS: Filme em Casa, Passeio, Cinema, Viagem -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3.5.5: IGREJA E FIDELIDADE -->
+  <div class="modal-overlay" id="modal-church">
+    <div class="modal-card glass-panel large-modal" style="border-color: rgba(168, 85, 247, 0.4);">
+      <div class="modal-header">
+        <h2>⛪ Igreja & Fidelidade Cristã</h2>
+        <button class="btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body scrollable">
+        <p class="intro-p">"Trazei todos os dízimos à casa do tesouro..." A devolução do dízimo e a entrega de ofertas voluntárias não são obrigatórias na simulação, mas refletem a fidelidade e generosidade, auxiliando nos indicadores da sua família!</p>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+          <!-- Card de Dízimo -->
+          <div class="chore-item glass-panel" style="display:flex; flex-direction:column; justify-content:space-between; padding:1.5rem; border-color: rgba(168, 85, 247, 0.2);">
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h3 style="color:#a855f7; margin:0; font-size:1.2rem;">Devolução do Dízimo (10%)</h3>
+                <span class="badge-info" style="font-size:0.75rem;">Fidelidade</span>
+              </div>
+              <p style="font-size:0.85rem; color:var(--text-muted); line-height:1.4; margin-bottom:15px;">
+                O dízimo equivale a 10% do seu salário base mensal (R$ <span id="church-salary-amount">0.00</span>). Ao devolver o dízimo, você demonstra fidelidade e recebe um bônus especial.
+              </p>
+              <div style="background:rgba(255,255,255,0.02); padding:10px; border-radius:6px; border:1px solid rgba(255,255,255,0.05); margin-bottom:15px; font-size:0.8rem; color:var(--text-muted);">
+                💸 Custo: <strong style="color:var(--text-light);" id="church-tithe-cost">R$ 0.00</strong> <br>
+                🎁 Recompensa: <strong style="color:var(--success);">+100 pts no Ranking</strong> | <strong style="color:var(--warning);">+15% Felicidade</strong>
+              </div>
+            </div>
+            <div id="church-tithe-action-container">
+              <!-- Botão inserido via JS -->
+            </div>
+          </div>
+
+          <!-- Card de Oferta -->
+          <div class="chore-item glass-panel" style="display:flex; flex-direction:column; justify-content:space-between; padding:1.5rem; border-color: rgba(99, 102, 241, 0.2);">
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h3 style="color:#6366f1; margin:0; font-size:1.2rem;">Oferta Voluntária</h3>
+                <span class="badge-success" style="font-size:0.75rem;">Generosidade</span>
+              </div>
+              <p style="font-size:0.85rem; color:var(--text-muted); line-height:1.4; margin-bottom:15px;">
+                A oferta voluntária é um pacto de generosidade. Você pode entregar uma oferta para apoiar os projetos sociais e a igreja local.
+              </p>
+              <div style="background:rgba(255,255,255,0.02); padding:10px; border-radius:6px; border:1px solid rgba(255,255,255,0.05); margin-bottom:15px; font-size:0.8rem; color:var(--text-muted);">
+                💸 Custo: <strong style="color:var(--text-light);">R$ 30.00</strong> <br>
+                🎁 Recompensa: <strong style="color:var(--success);">+30 pts no Ranking</strong> | <strong style="color:var(--warning);">+5% Felicidade</strong>
+              </div>
+            </div>
+            <div>
+              <button id="btn-church-give-offering" class="btn-primary btn-full" style="background:#6366f1;">Entregar Oferta (R$ 30,00)</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1301,6 +1396,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=1.1" type="module"></script>
+  <script src="app.js?v=1.2" type="module"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@
  * Lógica do Participante (Casa Virtual - Assíncrona)
  */
 
-import { engine } from './state.js?v=1.1';
+import { engine } from './state.js?v=1.2';
 import { 
   DEFAULT_TASKS, 
   DEFAULT_EXTRA_INCOME_ACTIVITIES, 
@@ -496,6 +496,40 @@ async function renderModalContent(modalId) {
     case 'modal-bank': {
       document.getElementById('bank-reserve-val').textContent = `R$ ${p.reserve.toFixed(2)}`;
       
+      // Renderizar Poupança Campori
+      p.indicators = p.indicators || {};
+      const camporiSavings = p.indicators.camporiSavings || 0;
+      const camporiPaid = p.indicators.camporiPaid || false;
+
+      const savedEl = document.getElementById('campori-saved-amount');
+      if (savedEl) savedEl.textContent = `R$ ${camporiSavings.toFixed(2)}`;
+      
+      const pct = Math.min(100, Math.round((camporiSavings / 2000) * 100));
+      const progressBar = document.getElementById('campori-progress-bar');
+      const progressPercent = document.getElementById('campori-progress-percent');
+      
+      if (progressBar) progressBar.style.width = `${pct}%`;
+      if (progressPercent) progressPercent.textContent = `${pct}%`;
+
+      const payContainer = document.getElementById('campori-payment-container');
+      const savingsControls = document.getElementById('campori-savings-controls');
+
+      if (camporiPaid) {
+        if (payContainer) {
+          payContainer.innerHTML = `<div class="badge-success" style="text-align:center; padding:10px; font-weight:bold; border-radius:6px; font-size:0.9rem; background:#22c55e; color:white;">✔️ Inscrição Paga! 🎉 (+300 pts)</div>`;
+        }
+        if (savingsControls) {
+          savingsControls.style.display = 'none';
+        }
+      } else {
+        if (payContainer) {
+          payContainer.innerHTML = `<button id="btn-campori-pay" class="btn-primary btn-full" style="background:#eab308; color:#000; border:none; font-weight:bold; cursor:pointer;" ${camporiSavings < 2000 ? 'disabled' : ''}>🎪 Pagar Inscrição (R$ 2.000)</button>`;
+        }
+        if (savingsControls) {
+          savingsControls.style.display = 'block';
+        }
+      }
+
       const tbody = document.querySelector('#table-active-loans tbody');
       tbody.innerHTML = '';
 
@@ -519,6 +553,23 @@ async function renderModalContent(modalId) {
           `;
           tbody.appendChild(row);
         });
+      }
+      break;
+    }
+
+    // 2.5. IGREJA E FIDELIDADE
+    case 'modal-church': {
+      p.indicators = p.indicators || {};
+      const titheCost = Math.round(p.salary * 0.10);
+      
+      document.getElementById('church-salary-amount').textContent = p.salary.toFixed(2);
+      document.getElementById('church-tithe-cost').textContent = `R$ ${titheCost.toFixed(2)}`;
+
+      const actionContainer = document.getElementById('church-tithe-action-container');
+      if (p.indicators.tithesReturnedThisMonth) {
+        actionContainer.innerHTML = `<div class="badge-success" style="text-align:center; padding:10px; font-weight:bold; border-radius:6px; font-size:0.9rem; background:#22c55e; color:white;">✔️ Dízimo Devolvido! Fiel este mês ⛪</div>`;
+      } else {
+        actionContainer.innerHTML = `<button id="btn-church-devolver-dizimo" class="btn-primary btn-full" style="background:#a855f7; color:white; border:none; font-weight:bold; cursor:pointer; padding:10px 0; border-radius:4px;">Devolver Dízimo (R$ ${titheCost.toFixed(2)})</button>`;
       }
       break;
     }
@@ -1218,7 +1269,8 @@ function updateVisualHouseAndFamily(p) {
   // 3. Atualizar Planta da Casa Visual (Todos os Cômodos & Limpeza)
   const cleanVal = p.indicators.cleanliness || 0;
   const cleanlinessIndicator = document.getElementById('room-cleanliness-indicator');
-  const houseRooms = ['room-card-hall', 'room-card-chores', 'room-card-kitchen', 'room-card-leisure', 'room-card-bills', 'room-card-maintenance'];
+  const churchIndicator = document.getElementById('room-church-indicator');
+  const houseRooms = ['room-card-hall', 'room-card-chores', 'room-card-kitchen', 'room-card-leisure', 'room-card-bills', 'room-card-maintenance', 'room-card-church'];
 
   if (cleanlinessIndicator) {
     if (cleanVal >= 80) {
@@ -1229,6 +1281,15 @@ function updateVisualHouseAndFamily(p) {
       cleanlinessIndicator.innerHTML = '<span style="color:var(--warning);">💨 Limpeza: ' + cleanVal + '%</span>';
     } else {
       cleanlinessIndicator.innerHTML = '<span style="color:var(--danger); font-weight:bold; animation: blink-text 1.2s infinite;">⚠️ Limpeza Crítica: ' + cleanVal + '%</span>';
+    }
+  }
+
+  if (churchIndicator) {
+    p.indicators = p.indicators || {};
+    if (p.indicators.tithesReturnedThisMonth) {
+      churchIndicator.innerHTML = '<span style="color:#c084fc;">🙏 Fiel este mês</span>';
+    } else {
+      churchIndicator.innerHTML = '<span style="color:var(--text-muted);">Pendente</span>';
     }
   }
 
