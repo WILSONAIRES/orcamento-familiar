@@ -211,6 +211,125 @@ export function initParticipantView() {
     });
   }
 
+  // --- FORMULÁRIO DE POUPANÇA CAMPORI DSA ---
+  const btnCamporiDep = document.getElementById('btn-campori-deposit');
+  const btnCamporiWith = document.getElementById('btn-campori-withdraw');
+  const btnCamporiPay = document.getElementById('btn-campori-pay');
+  const camporiAmtInput = document.getElementById('input-campori-amount');
+
+  if (btnCamporiDep) {
+    btnCamporiDep.addEventListener('click', async () => {
+      const currentId = engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
+      const amt = parseFloat(camporiAmtInput.value) || 0;
+      if (amt <= 0) return alert("Insira um valor maior que zero.");
+      
+      try {
+        btnCamporiDep.disabled = true;
+        const res = await engine.apiCall(`/api/participant/${currentId}/campori-savings`, 'POST', { action: 'deposit', amount: amt });
+        alert(res.message);
+        if (res.success) {
+          camporiAmtInput.value = '';
+          await renderModalContent('modal-bank');
+          await refreshParticipantView();
+        }
+      } catch (err) {
+        alert(err.message || "Erro ao depositar.");
+      } finally {
+        btnCamporiDep.disabled = false;
+      }
+    });
+  }
+
+  if (btnCamporiWith) {
+    btnCamporiWith.addEventListener('click', async () => {
+      const currentId = engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
+      const amt = parseFloat(camporiAmtInput.value) || 0;
+      if (amt <= 0) return alert("Insira um valor maior que zero.");
+      
+      try {
+        btnCamporiWith.disabled = true;
+        const res = await engine.apiCall(`/api/participant/${currentId}/campori-savings`, 'POST', { action: 'withdraw', amount: amt });
+        alert(res.message);
+        if (res.success) {
+          camporiAmtInput.value = '';
+          await renderModalContent('modal-bank');
+          await refreshParticipantView();
+        }
+      } catch (err) {
+        alert(err.message || "Erro ao retirar.");
+      } finally {
+        btnCamporiWith.disabled = false;
+      }
+    });
+  }
+
+  // Uso de delegação para o botão dinâmico de Pagar Inscrição
+  document.addEventListener('click', async (e) => {
+    if (e.target && e.target.id === 'btn-campori-pay') {
+      const confirmPay = confirm("🎪 Tem certeza que deseja pagar a Inscrição do Campori DSA? Isso deduzirá R$ 2.000,00 da sua poupança do Campori e ela sairá do jogo como pagamento definitivo, garantindo a sua inscrição e +300 pontos de especialidade!");
+      if (!confirmPay) return;
+
+      const currentId = engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
+      try {
+        e.target.disabled = true;
+        const res = await engine.apiCall(`/api/participant/${currentId}/campori-pay`, 'POST');
+        alert(res.message);
+        if (res.success) {
+          await renderModalContent('modal-bank');
+          await refreshParticipantView();
+        }
+      } catch (err) {
+        alert(err.message || "Erro ao pagar inscrição.");
+      } finally {
+        e.target.disabled = false;
+      }
+    }
+  });
+
+  // --- IGREJA: DÍZIMOS E OFERTAS ---
+  const btnGiveOffering = document.getElementById('btn-church-give-offering');
+  if (btnGiveOffering) {
+    btnGiveOffering.addEventListener('click', async () => {
+      const currentId = engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
+      try {
+        btnGiveOffering.disabled = true;
+        const res = await engine.apiCall(`/api/participant/${currentId}/church-offering`, 'POST');
+        alert(res.message);
+        if (res.success) {
+          await renderModalContent('modal-church');
+          await refreshParticipantView();
+        }
+      } catch (err) {
+        alert(err.message || "Erro ao entregar oferta.");
+      } finally {
+        btnGiveOffering.disabled = false;
+      }
+    });
+  }
+
+  // Escuta global delegação para botão dinâmico de Dízimo
+  document.addEventListener('click', async (e) => {
+    if (e.target && e.target.id === 'btn-church-devolver-dizimo') {
+      const confirmTithe = confirm("⛪ Devolução de Dízimo: Confirma a devolução de 10% do seu salário base?");
+      if (!confirmTithe) return;
+
+      const currentId = engine.currentUser.participantId || localStorage.getItem('mf_active_part_id');
+      try {
+        e.target.disabled = true;
+        const res = await engine.apiCall(`/api/participant/${currentId}/church-tithe`, 'POST');
+        alert(res.message);
+        if (res.success) {
+          await renderModalContent('modal-church');
+          await refreshParticipantView();
+        }
+      } catch (err) {
+        alert(err.message || "Erro ao devolver dízimo.");
+      } finally {
+        e.target.disabled = false;
+      }
+    }
+  });
+
   // --- COMPRA DE ALIMENTOS NO MERCADO ---
   document.querySelectorAll('.btn-buy-food').forEach(btn => {
     btn.addEventListener('click', async () => {
