@@ -232,6 +232,25 @@
             </div>
           </div>
           
+          <!-- CARD DA META CAMPORI DSA (TELA PRINCIPAL) -->
+          <div class="sidebar-card glass-panel" id="main-campori-card" style="padding: 1.5rem; border: 1px solid rgba(234, 179, 8, 0.3); border-radius: 12px; background: rgba(234, 179, 8, 0.01);">
+            <h3 style="margin-top:0; color:#eab308; display:flex; align-items:center; gap:8px;">🎪 Passaporte Campori DSA</h3>
+            <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.8rem; line-height: 1.3;">Guarde dinheiro no banco e pague a sua inscrição (Meta: R$ 2.000,00).</p>
+            
+            <!-- Progress Bar -->
+            <div style="width: 100%; height: 8px; border-radius: 4px; overflow: hidden; background: rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.05); margin-bottom: 6px;">
+              <div id="main-campori-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #eab308, #ca8a04); transition: width 0.3s ease;"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted); margin-bottom: 12px;">
+              <span>Poupança: <strong id="main-campori-saved-amount" style="color:#eab308;">R$ 0,00</strong></span>
+              <span id="main-campori-progress-percent">0%</span>
+            </div>
+            
+            <div id="main-campori-action-container">
+              <!-- Injetado via JS -->
+            </div>
+          </div>
+          
           <!-- CARD DO QUADRO DO COBRADOR / FAMÍLIA -->
           <div class="sidebar-card glass-panel" style="padding: 1.5rem; border: 1px solid var(--border-color); border-radius: 12px;">
             <h3 style="margin-top:0; display:flex; align-items:center; gap:8px;">👥 Quadro da Família</h3>

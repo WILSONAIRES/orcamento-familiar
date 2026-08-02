@@ -263,9 +263,9 @@ export function initParticipantView() {
     });
   }
 
-  // Uso de delegação para o botão dinâmico de Pagar Inscrição
+  // Uso de delegação para o botão dinâmico de Pagar Inscrição (Banco e Tela Principal)
   document.addEventListener('click', async (e) => {
-    if (e.target && e.target.id === 'btn-campori-pay') {
+    if (e.target && (e.target.id === 'btn-campori-pay' || e.target.id === 'btn-campori-pay-main')) {
       const confirmPay = confirm("🎪 Tem certeza que deseja pagar a Inscrição do Campori DSA? Isso deduzirá R$ 2.000,00 da sua poupança do Campori e ela sairá do jogo como pagamento definitivo, garantindo a sua inscrição e +300 pontos de especialidade!");
       if (!confirmPay) return;
 
@@ -469,6 +469,30 @@ export async function refreshParticipantView() {
     const cleaningStockEl = document.getElementById('player-cleaning-stock-val');
     if (cleaningStockEl) {
       cleaningStockEl.textContent = `${p.cleaningProductsStock || 0} cargas`;
+    }
+
+    // Atualizar Barra de Progresso do Campori na Tela Principal
+    p.indicators = p.indicators || {};
+    const camporiSavings = p.indicators.camporiSavings || 0;
+    const camporiPaid = p.indicators.camporiPaid || false;
+
+    const mainSavedEl = document.getElementById('main-campori-saved-amount');
+    if (mainSavedEl) mainSavedEl.textContent = `R$ ${camporiSavings.toFixed(2)}`;
+
+    const mainPct = Math.min(100, Math.round((camporiSavings / 2000) * 100));
+    const mainProgressBar = document.getElementById('main-campori-progress-bar');
+    const mainProgressPercent = document.getElementById('main-campori-progress-percent');
+
+    if (mainProgressBar) mainProgressBar.style.width = `${mainPct}%`;
+    if (mainProgressPercent) mainProgressPercent.textContent = `${mainPct}%`;
+
+    const mainActionContainer = document.getElementById('main-campori-action-container');
+    if (mainActionContainer) {
+      if (camporiPaid) {
+        mainActionContainer.innerHTML = `<div class="badge-success" style="text-align:center; padding:8px; font-weight:bold; border-radius:6px; font-size:0.85rem; background:#22c55e; color:white; border:none; margin-top:5px;">✔️ Inscrição Paga! 🎉 (+300 pts)</div>`;
+      } else {
+        mainActionContainer.innerHTML = `<button id="btn-campori-pay-main" class="btn-primary btn-full btn-small" style="background:#eab308; color:#000; border:none; font-weight:bold; cursor:pointer; padding:6px 0; font-size:0.8rem; border-radius:4px; margin-top:5px;" ${camporiSavings < 2000 ? 'disabled' : ''}>🎪 Pagar Inscrição (R$ 2.000)</button>`;
+      }
     }
 
     // Badges da Home
