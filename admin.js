@@ -3,7 +3,7 @@
  * Lógica do Painel Administrativo (Assíncrona)
  */
 
-import { engine } from './state.js?v=1.2';
+import { engine } from './state.js?v=1.3';
 
 // Safe localStorage wrapper for older iOS Safari (Private Browsing compatibility)
 const safeStorage = {
@@ -123,6 +123,28 @@ export function initAdminView() {
         alert("Erro ao zerar tarefas diárias: " + err.message);
       } finally {
         btnResetDaily.disabled = false;
+      }
+    });
+  }
+
+  const btnVerifyRanking = document.getElementById('btn-admin-verify-ranking');
+  if (btnVerifyRanking) {
+    btnVerifyRanking.addEventListener('click', async () => {
+      const confirmAction = confirm("🔍 Deseja apurar o ranking agora? Isso sincronizará as datas de todas as famílias com a data de Brasília/São Paulo, aplicando automaticamente os decaimentos diários de limpeza, saúde e fome para cada dia não jogado.");
+      if (!confirmAction) return;
+
+      try {
+        btnVerifyRanking.disabled = true;
+        btnVerifyRanking.textContent = "⌛ Apurando...";
+        const res = await engine.apiCall('/api/admin/verify-ranking', 'POST');
+        alert(res.message || "Ranking apurado com sucesso!");
+        await refreshAdminTab('admin-dashboard');
+      } catch (err) {
+        console.error(err);
+        alert("Erro ao apurar ranking: " + err.message);
+      } finally {
+        btnVerifyRanking.disabled = false;
+        btnVerifyRanking.textContent = "🔍 Apurar Ranking";
       }
     });
   }

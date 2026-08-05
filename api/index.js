@@ -71,111 +71,124 @@ async function checkAndAdvanceDaysAutomatically(part) {
     part.foodStockHealthy = part.foodStockHealthy !== undefined ? part.foodStockHealthy : 5;
     part.foodStockPremium = part.foodStockPremium !== undefined ? part.foodStockPremium : 0;
 
-    if (part.lastDayTransitionDate !== todayStr) {
-      if (part.day < 30) {
-        console.log(`⏰ [AutoDay] Virando dia automático para ${part.id}. De ${part.day} para ${part.day + 1}`);
-        let logs = [];
-        
-        // 1. Limpeza (clean_house)
-        const cleanedToday = part.tasksCompletedToday.includes('clean_house');
-        if (!cleanedToday) {
-          part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 15);
-          part.indicators.health = Math.max(0, part.indicators.health - 3);
-          part.indicators.happiness = Math.max(0, part.indicators.happiness - 3);
-          logs.push('A casa não foi limpa hoje (Limpeza: -15%, Saúde: -3%, Felicidade: -3%)');
-        }
+    let tempDate = new Date(part.lastDayTransitionDate + 'T12:00:00');
+    const targetDate = new Date(todayStr + 'T12:00:00');
+    let hasChanged = false;
 
-        // 2. Pratos (wash_dishes)
-        const washedToday = part.tasksCompletedToday.includes('wash_dishes');
-        if (!washedToday) {
-          part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 10);
-          part.indicators.health = Math.max(0, part.indicators.health - 2);
-          part.indicators.happiness = Math.max(0, part.indicators.happiness - 2);
-          logs.push('A pia/louça não foi lavada hoje (Limpeza: -10%, Saúde: -2%, Felicidade: -2%)');
-        }
+    while (tempDate < targetDate) {
+      if (part.finished === 1) break;
 
-        // 3. Roupas (wash_clothes)
-        const clothesWashedToday = part.tasksCompletedToday.includes('wash_clothes');
-        if (!clothesWashedToday) {
-          part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 10);
-          part.indicators.health = Math.max(0, part.indicators.health - 1);
-          part.indicators.happiness = Math.max(0, part.indicators.happiness - 2);
-          logs.push('As roupas não foram lavadas hoje (Limpeza: -10%, Saúde: -1%, Felicidade: -2%)');
-        }
-
-        // 4. Alimentação
-        const preparedToday = part.tasksCompletedToday.some(t => t.startsWith('prepare_meals'));
-        const hasAte = part.ateToday || preparedToday;
-
-        if (!hasAte) {
-          part.indicators.health = 10;
-          part.indicators.happiness = 10;
-          logs.push('⚠️ A família ficou com FOME hoje! Saúde e Felicidade desceram para o nível mais baixo (10%)!');
-        }
-
-        // 4. Consequências de Limpeza Baixa (Quebras Estruturais - Probabilidade Dinâmica)
-        const cleanVal = part.indicators.cleanliness || 0;
-        const breakdownChance = 0.05 + 0.90 * (1.0 - (cleanVal / 100.0));
-        if (Math.random() < breakdownChance) {
-          const breakdownTemplates = [
-            { id: 'pipe_leak', name: 'Vazamento no Banheiro', repairCost: 300, description: 'Um cano estourou na parede do banheiro, molhando a casa e exigindo encanador de emergência.' },
-            { id: 'fridge_repair', name: 'Geladeira Queimou', repairCost: 450, description: 'A geladeira parou de funcionar e os alimentos correm risco de estragar. Conserto imediato necessário.' }
-          ];
-          const choice = breakdownTemplates[Math.floor(Math.random() * breakdownTemplates.length)];
-          if (!part.activeEvents.some(e => e.id === choice.id)) {
-            part.activeEvents.push({
-              id: choice.id,
-              name: choice.name,
-              description: choice.description,
-              impact: 0,
-              tip: 'Problemas na estrutura da casa reduzem a limpeza e o bem-estar da família. Resolva-os o quanto antes!',
-              weekTriggered: part.week,
-              isBreakdown: true,
-              repairCost: choice.repairCost
-            });
-            part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 10);
-            part.indicators.happiness = Math.max(0, part.indicators.happiness - 5);
-            logs.push(`🔧 Ocorreu um '${choice.name}' (Chance: ${Math.round(breakdownChance*100)}%)! Chame manutenção.`);
-          }
-        }
-
-        // 5. Consequências de Saúde/Felicidade Baixa (Doenças - Probabilidade Dinâmica)
-        const healthVal = part.indicators.health || 0;
-        const happyVal = part.indicators.happiness || 0;
-        const avgHealthHappy = (healthVal + happyVal) / 2.0;
-        const diseaseChance = 0.05 + 0.90 * (1.0 - (avgHealthHappy / 100.0));
-        if (Math.random() < diseaseChance) {
-          const diseaseTemplates = [
-            { id: 'gripe', name: 'Gripe Comum', description: 'Febre baixa, coriza e dor no corpo. Exige repouso e antitérmico.', requiredMedicine: 'Antitérmico e Vitamina C', medicineCost: 45, recoveryWeeks: 1, healthImpact: -15, happinessImpact: -10 },
-            { id: 'infeccao_intestinal', name: 'Infecção Intestinal', description: 'Causada por alimentação inadequada ou falta de higiene na cozinha.', requiredMedicine: 'Antibiótico e Soro de Reidratação', medicineCost: 80, recoveryWeeks: 1, healthImpact: -25, happinessImpact: -15 },
-            { id: 'estresse_extremo', name: 'Cansaço Extremo / Estresse', description: 'Esgotamento físico e mental devido a excesso de preocupação financeira.', requiredMedicine: 'Polivitamínico e Lazer', medicineCost: 60, recoveryWeeks: 2, healthImpact: -20, happinessImpact: -25 },
-            { id: 'alergia_pele', name: 'Alergia de Pele', description: 'Reação alérgica causada por poeira ou acúmulo de sujeira na residência.', requiredMedicine: 'Pomada Antialérgica', medicineCost: 35, recoveryWeeks: 1, healthImpact: -10, happinessImpact: -8 }
-          ];
-          const choice = diseaseTemplates[Math.floor(Math.random() * diseaseTemplates.length)];
-          if (!part.activeIllnesses.some(i => i.id === choice.id)) {
-            part.activeIllnesses.push({ ...choice });
-            part.indicators.health = Math.max(0, part.indicators.health + choice.healthImpact);
-            part.indicators.happiness = Math.max(0, part.indicators.happiness + choice.happinessImpact);
-            logs.push(`🤒 Um membro da família contraiu '${choice.name}' (Chance: ${Math.round(diseaseChance*100)}%)! Vá à Farmácia.`);
-          }
-        }
-
-        part.day += 1;
-        part.tasksCompletedToday = [];
-        part.ateToday = false;
-        part.energy = 100;
-
-        const msgStr = logs.length > 0 
-          ? `Dia ${part.day - 1} finalizado. Ocorrências: ${logs.join('; ')}`
-          : `Dia ${part.day - 1} finalizado com sucesso! Toda a rotina diária foi cumprida. Energia restaurada.`;
-        
-        part.notifications.unshift({ 
-          type: logs.length > 0 ? 'warning' : 'success', 
-          text: msgStr 
-        });
-      }
+      console.log(`⏰ [AutoDay] Virando dia automático para ${part.id} (${part.name}). Dia ${part.day} da data ${part.lastDayTransitionDate}`);
+      let logs = [];
       
-      part.lastDayTransitionDate = todayStr;
+      // 1. Limpeza (clean_house)
+      const cleanedToday = part.tasksCompletedToday.includes('clean_house');
+      if (!cleanedToday) {
+        part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 15);
+        part.indicators.health = Math.max(0, part.indicators.health - 3);
+        part.indicators.happiness = Math.max(0, part.indicators.happiness - 3);
+        logs.push('A casa não foi limpa hoje (Limpeza: -15%, Saúde: -3%, Felicidade: -3%)');
+      }
+
+      // 2. Pratos (wash_dishes)
+      const washedToday = part.tasksCompletedToday.includes('wash_dishes');
+      if (!washedToday) {
+        part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 10);
+        part.indicators.health = Math.max(0, part.indicators.health - 2);
+        part.indicators.happiness = Math.max(0, part.indicators.happiness - 2);
+        logs.push('A pia/louça não foi lavada hoje (Limpeza: -10%, Saúde: -2%, Felicidade: -2%)');
+      }
+
+      // 3. Roupas (wash_clothes)
+      const clothesWashedToday = part.tasksCompletedToday.includes('wash_clothes');
+      if (!clothesWashedToday) {
+        part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 10);
+        part.indicators.health = Math.max(0, part.indicators.health - 1);
+        part.indicators.happiness = Math.max(0, part.indicators.happiness - 2);
+        logs.push('As roupas não foram lavadas hoje (Limpeza: -10%, Saúde: -1%, Felicidade: -2%)');
+      }
+
+      // 4. Alimentação
+      const preparedToday = part.tasksCompletedToday.some(t => t.startsWith('prepare_meals'));
+      const hasAte = part.ateToday || preparedToday;
+
+      if (!hasAte) {
+        part.indicators.health = 10;
+        part.indicators.happiness = 10;
+        logs.push('A família ficou com FOME hoje! Saúde e Felicidade desceram para o nível mais baixo (10%)!');
+      }
+
+      // 4. Consequências de Limpeza Baixa (Quebras Estruturais - Probabilidade Dinâmica)
+      const cleanVal = part.indicators.cleanliness || 0;
+      const breakdownChance = 0.05 + 0.90 * (1.0 - (cleanVal / 100.0));
+      if (Math.random() < breakdownChance) {
+        const breakdownTemplates = [
+          { id: 'pipe_leak', name: 'Vazamento no Banheiro', repairCost: 300, description: 'Um cano estourou na parede do banheiro, molhando a casa e exigindo encanador de emergência.' },
+          { id: 'fridge_repair', name: 'Geladeira Queimou', repairCost: 450, description: 'A geladeira parou de funcionar e os alimentos correm risco de estragar. Conserto imediato necessário.' }
+        ];
+        const choice = breakdownTemplates[Math.floor(Math.random() * breakdownTemplates.length)];
+        if (!part.activeEvents.some(e => e.id === choice.id)) {
+          part.activeEvents.push({
+            id: choice.id,
+            name: choice.name,
+            description: choice.description,
+            impact: 0,
+            tip: 'Problemas na estrutura da casa reduzem a limpeza e o bem-estar da família. Resolva-os o quanto antes!',
+            weekTriggered: part.week,
+            isBreakdown: true,
+            repairCost: choice.repairCost
+          });
+          part.indicators.cleanliness = Math.max(0, part.indicators.cleanliness - 10);
+          part.indicators.happiness = Math.max(0, part.indicators.happiness - 5);
+          logs.push(`🔧 Ocorreu um '${choice.name}'! Chame manutenção.`);
+        }
+      }
+
+      // 5. Consequências de Saúde/Felicidade Baixa (Doenças - Probabilidade Dinâmica)
+      const healthVal = part.indicators.health || 0;
+      const happyVal = part.indicators.happiness || 0;
+      const avgHealthHappy = (healthVal + happyVal) / 2.0;
+      const diseaseChance = 0.05 + 0.90 * (1.0 - (avgHealthHappy / 100.0));
+      if (Math.random() < diseaseChance) {
+        const diseaseTemplates = [
+          { id: 'gripe', name: 'Gripe Comum', description: 'Febre baixa, coriza e dor no corpo. Exige repouso e antitérmico.', requiredMedicine: 'Antitérmico e Vitamina C', medicineCost: 45, recoveryWeeks: 1, healthImpact: -15, happinessImpact: -10 },
+          { id: 'infeccao_intestinal', name: 'Infecção Intestinal', description: 'Causada por alimentação inadequada ou falta de higiene na cozinha.', requiredMedicine: 'Antibiótico e Soro de Reidratação', medicineCost: 80, recoveryWeeks: 1, healthImpact: -25, happinessImpact: -15 },
+          { id: 'estresse_extremo', name: 'Cansaço Extremo / Estresse', description: 'Esgotamento físico e mental devido a excesso de preocupação financeira.', requiredMedicine: 'Polivitamínico e Lazer', medicineCost: 60, recoveryWeeks: 2, healthImpact: -20, happinessImpact: -25 },
+          { id: 'alergia_pele', name: 'Alergia de Pele', description: 'Reação alérgica causada por poeira ou acúmulo de sujeira na residência.', requiredMedicine: 'Pomada Antialérgica', medicineCost: 35, recoveryWeeks: 1, healthImpact: -10, happinessImpact: -8 }
+        ];
+        const choice = diseaseTemplates[Math.floor(Math.random() * diseaseTemplates.length)];
+        if (!part.activeIllnesses.some(i => i.id === choice.id)) {
+          part.activeIllnesses.push({ ...choice });
+          part.indicators.health = Math.max(0, part.indicators.health + choice.healthImpact);
+          part.indicators.happiness = Math.max(0, part.indicators.happiness + choice.happinessImpact);
+          logs.push(`🤒 Um membro da família contraiu '${choice.name}'! Vá à Farmácia.`);
+        }
+      }
+
+      // Avançar dia
+      if (part.day < 30) {
+        part.day += 1;
+      }
+      part.tasksCompletedToday = [];
+      part.ateToday = false;
+      part.energy = 100;
+
+      const msgStr = logs.length > 0 
+        ? `Dia ${part.day - 1} finalizado. Ocorrências: ${logs.join('; ')}`
+        : `Dia ${part.day - 1} finalizado com sucesso! Toda a rotina diária foi cumprida. Energia restaurada.`;
+      
+      part.notifications.unshift({ 
+        type: logs.length > 0 ? 'warning' : 'success', 
+        text: msgStr 
+      });
+
+      // Mover data temporária para o próximo dia
+      tempDate.setDate(tempDate.getDate() + 1);
+      part.lastDayTransitionDate = getSaoPauloDateString(tempDate);
+      hasChanged = true;
+    }
+
+    if (hasChanged) {
       await db.saveParticipant(part);
     }
   } catch (err) {
@@ -2145,6 +2158,35 @@ app.post('/api/admin/reset-daily-tasks', authenticateToken, requireAdmin, async 
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Erro ao zerar tarefas diárias de todas as famílias.' });
+  }
+});
+
+// Sincronizar dias e apurar o ranking
+app.post('/api/admin/verify-ranking', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const list = await db.getParticipants();
+    const activeOnes = list.filter(p => p.finished === 0);
+
+    let count = 0;
+    for (const p of activeOnes) {
+      // Forçar a sincronização de dias e consequente decaimento se estiver inativo
+      await checkAndAdvanceDaysAutomatically(p);
+      count++;
+    }
+
+    // Registro de Auditoria
+    await db.addAuditLog({
+      id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 3),
+      timestamp: new Date().toISOString(),
+      username: req.user.name,
+      action: 'Ranking Apurado',
+      details: `O diretor forçou a apuração do ranking, sincronizando o dia e aplicando decaimentos em ${count} famílias ativas.`
+    });
+
+    res.json({ success: true, message: `Ranking apurado e dias sincronizados para todas as ${count} famílias ativas com sucesso!` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro ao apurar ranking de todas as famílias.' });
   }
 });
 
