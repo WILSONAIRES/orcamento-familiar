@@ -270,34 +270,59 @@ async function checkAndAdvanceCyclesAutomatically() {
     if (targetDay === undefined) return;
 
     const now = new Date();
-    // Obter data local de São Paulo para cálculo correto do dia da semana (0-6)
-    const tzDate = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-    const currentDay = tzDate.getDay(); // 0-6 (0=Domingo, 1=Segunda, etc. no fuso de SP)
+    const todayStr = getSaoPauloDateString(now);
 
-    if (currentDay === targetDay) {
-      const todayStr = getSaoPauloDateString(now); // AAAA-MM-DD no fuso de SP
-      if (campaign.lastCycleAdvanceDate !== todayStr) {
-        isAutoCycling = true;
-        
-        // 1. Atualizar e salvar data no banco de dados ANTES para evitar que requisições concorrentes prossigam
-        campaign.lastCycleAdvanceDate = todayStr;
-        await db.updateCampaign(campaign);
-        
-        console.log(`⏰ [AutoCycle] Hoje é ${campaign.cycleTransitionDay}. Rodando avanço de ciclo automático...`);
-        
-        const list = await db.getParticipants();
-        const activeOnes = list.filter(p => p.finished === 0);
+    // Se já rodamos o fechamento hoje, não faz nada
+    if (campaign.lastCycleAdvanceDate === todayStr) return;
 
-        for (const p of activeOnes) {
-          try {
-            await advanceParticipantWeekLogic(p.id, 'Avanço Automático (Sistema)');
-          } catch (e) {
-            console.error(`Erro ao avançar participante ${p.id} automaticamente:`, e);
-          }
+    // Verificar se devemos rodar o avanço (se hoje é o targetDay, ou se passou um targetDay desde lastCycleAdvanceDate)
+    let shouldAdvance = false;
+
+    if (campaign.lastCycleAdvanceDate) {
+      // Loop dia a dia a partir de lastCycleAdvanceDate + 1 dia até hoje
+      let temp = new Date(campaign.lastCycleAdvanceDate + 'T12:00:00');
+      const targetLimit = new Date(todayStr + 'T12:00:00');
+      temp.setDate(temp.getDate() + 1);
+
+      while (temp <= targetLimit) {
+        // Obter o dia da semana no fuso de SP
+        const dayOfWeek = temp.getDay();
+        if (dayOfWeek === targetDay) {
+          shouldAdvance = true;
+          break;
         }
-
-        console.log(`⏰ [AutoCycle] Avanço de ciclo automático concluído!`);
+        temp.setDate(temp.getDate() + 1);
       }
+    } else {
+      // Se nunca rodou, e hoje é o targetDay, roda
+      const tzDate = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+      const currentDay = tzDate.getDay();
+      if (currentDay === targetDay) {
+        shouldAdvance = true;
+      }
+    }
+
+    if (shouldAdvance) {
+      isAutoCycling = true;
+      
+      // 1. Atualizar e salvar data no banco de dados ANTES para evitar que requisições concorrentes prossigam
+      campaign.lastCycleAdvanceDate = todayStr;
+      await db.updateCampaign(campaign);
+      
+      console.log(`⏰ [AutoCycle] Rodando avanço de ciclo automático acumulado/agendado (Hoje: ${todayStr}, Dia Alvo: ${campaign.cycleTransitionDay})...`);
+      
+      const list = await db.getParticipants();
+      const activeOnes = list.filter(p => p.finished === 0);
+
+      for (const p of activeOnes) {
+        try {
+          await advanceParticipantWeekLogic(p.id, 'Avanço Automático (Sistema)');
+        } catch (e) {
+          console.error(`Erro ao avançar participante ${p.id} automaticamente:`, e);
+        }
+      }
+
+      console.log(`⏰ [AutoCycle] Avanço de ciclo automático concluído!`);
     }
   } catch (err) {
     console.error('Erro no AutoCycle:', err);
