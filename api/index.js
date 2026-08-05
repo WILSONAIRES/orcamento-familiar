@@ -2186,18 +2186,11 @@ app.post('/api/admin/reset-daily-tasks', authenticateToken, requireAdmin, async 
   }
 });
 
-// Sincronizar dias e apurar o ranking
+// Sincronizar dias e apurar o ranking (Sem alterar dados dos participantes)
 app.post('/api/admin/verify-ranking', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const list = await db.getParticipants();
-    const activeOnes = list.filter(p => p.finished === 0);
-
-    let count = 0;
-    for (const p of activeOnes) {
-      // Forçar a sincronização de dias e consequente decaimento se estiver inativo
-      await checkAndAdvanceDaysAutomatically(p);
-      count++;
-    }
+    const activeCount = list.filter(p => p.finished === 0).length;
 
     // Registro de Auditoria
     await db.addAuditLog({
@@ -2205,13 +2198,13 @@ app.post('/api/admin/verify-ranking', authenticateToken, requireAdmin, async (re
       timestamp: new Date().toISOString(),
       username: req.user.name,
       action: 'Ranking Apurado',
-      details: `O diretor forçou a apuração do ranking, sincronizando o dia e aplicando decaimentos em ${count} famílias ativas.`
+      details: `O diretor apurou a classificação do ranking das famílias (Total de ${activeCount} ativos).`
     });
 
-    res.json({ success: true, message: `Ranking apurado e dias sincronizados para todas as ${count} famílias ativas com sucesso!` });
+    res.json({ success: true, message: 'Ranking atualizado com sucesso!' });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Erro ao apurar ranking de todas as famílias.' });
+    res.status(500).json({ message: 'Erro ao apurar ranking.' });
   }
 });
 

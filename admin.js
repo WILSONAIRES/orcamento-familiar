@@ -3,7 +3,7 @@
  * Lógica do Painel Administrativo (Assíncrona)
  */
 
-import { engine } from './state.js?v=1.3';
+import { engine } from './state.js?v=1.4';
 
 // Safe localStorage wrapper for older iOS Safari (Private Browsing compatibility)
 const safeStorage = {
@@ -130,7 +130,7 @@ export function initAdminView() {
   const btnVerifyRanking = document.getElementById('btn-admin-verify-ranking');
   if (btnVerifyRanking) {
     btnVerifyRanking.addEventListener('click', async () => {
-      const confirmAction = confirm("🔍 Deseja apurar o ranking agora? Isso sincronizará as datas de todas as famílias com a data de Brasília/São Paulo, aplicando automaticamente os decaimentos diários de limpeza, saúde e fome para cada dia não jogado.");
+      const confirmAction = confirm("🔍 Deseja apurar o ranking agora? Isso analisará as atividades concluídas por todos os participantes para atualizar as posições na classificação geral.");
       if (!confirmAction) return;
 
       try {

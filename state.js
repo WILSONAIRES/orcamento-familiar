@@ -499,18 +499,97 @@ class SimulationEngine {
 
   // --- LÓGICA DE CÁLCULO DE PONTUAÇÃO CLIENT-SIDE (Sincrona) ---
 
-  calculateFinalScore(participant, campaign) {
+  getVirtualIndicators(participant, campaign) {
     const ind = participant.indicators || {};
-    const health = ind.health || 0;
-    const happiness = ind.happiness || 0;
-    const cleanliness = ind.cleanliness || 0;
+    let health = ind.health || 0;
+    let happiness = ind.happiness || 0;
+    let cleanliness = ind.cleanliness || 0;
     const financial = ind.financial !== undefined ? ind.financial : (ind.finance !== undefined ? ind.finance : 50);
 
+    if (participant.finished === 1) {
+      return { health, happiness, cleanliness, financial };
+    }
+
+    // Obter data atual de São Paulo
+    const dtf = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const parts = dtf.formatToParts(new Date());
+    const year = parts.find(p => p.type === 'year').value;
+    const month = parts.find(p => p.type === 'month').value;
+    const day = parts.find(p => p.type === 'day').value;
+    const todayStr = `${year}-${month}-${day}`;
+
+    const lastDayStr = participant.lastDayTransitionDate || todayStr;
+    if (lastDayStr === todayStr) {
+      return { health, happiness, cleanliness, financial };
+    }
+
+    // Simular decaimentos virtuais dia a dia
+    let tempDate = new Date(lastDayStr + 'T12:00:00');
+    const targetDate = new Date(todayStr + 'T12:00:00');
+
+    let virtualDay = participant.day || 1;
+    let tasksCompleted = [...(participant.tasksCompletedToday || [])];
+    let ate = participant.ateToday || false;
+
+    while (tempDate < targetDate) {
+      // 1. Limpeza
+      const cleaned = tasksCompleted.includes('clean_house');
+      if (!cleaned) {
+        cleanliness = Math.max(0, cleanliness - 15);
+        health = Math.max(0, health - 3);
+        happiness = Math.max(0, happiness - 3);
+      }
+
+      // 2. Pratos
+      const washed = tasksCompleted.includes('wash_dishes');
+      if (!washed) {
+        cleanliness = Math.max(0, cleanliness - 10);
+        health = Math.max(0, health - 2);
+        happiness = Math.max(0, happiness - 2);
+      }
+
+      // 3. Roupas
+      const clothesWashed = tasksCompleted.includes('wash_clothes');
+      if (!clothesWashed) {
+        cleanliness = Math.max(0, cleanliness - 10);
+        health = Math.max(0, health - 1);
+        happiness = Math.max(0, happiness - 2);
+      }
+
+      // 4. Alimentação
+      const prepared = tasksCompleted.some(t => t.startsWith('prepare_meals'));
+      const hasAte = ate || prepared;
+      if (!hasAte) {
+        health = 10;
+        happiness = 10;
+      }
+
+      // Avançar dia virtual
+      if (virtualDay < 30) {
+        virtualDay += 1;
+      }
+      tasksCompleted = [];
+      ate = false;
+
+      tempDate.setDate(tempDate.getDate() + 1);
+    }
+
+    return { health, happiness, cleanliness, financial };
+  }
+
+  calculateFinalScore(participant, campaign) {
+    const vInd = this.getVirtualIndicators(participant, campaign);
+    
     // 150 pontos por mês/ciclo completo
     const cycleBonus = ((participant.week || 1) - 1) * 150;
 
-    // Média dos indicadores atuais multiplicada por 8 (máximo de 800 pontos)
-    const avgIndicators = (health + happiness + cleanliness + financial) / 4;
+    // Média dos indicadores virtuais (que sofreram decaimento se estiver inativo)
+    const avgIndicators = (vInd.health + vInd.happiness + vInd.cleanliness + vInd.financial) / 4;
     const statsBonus = Math.round(avgIndicators * 8);
 
     // Bônus de Objetivos Concluídos da Campanha
@@ -523,6 +602,7 @@ class SimulationEngine {
       });
     }
 
+    const ind = participant.indicators || {};
     // Dízimo: +100 pts por devolução
     const tithePoints = (ind.tithesReturnedCount || 0) * 100;
     // Oferta: +30 pts por devolução
