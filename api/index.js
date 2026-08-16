@@ -1791,6 +1791,12 @@ async function advanceParticipantWeekLogic(pId, adminName) {
 
   const diff = INITIAL_DIFFICULTIES[campaign.difficulty];
 
+  // Atualizar o salário do participante de acordo com os parâmetros atuais da campanha
+  const baseSalary = campaign.salaryType === 'fixed' 
+    ? campaign.fixedSalary 
+    : Math.floor(campaign.minSalary + Math.random() * (campaign.maxSalary - campaign.minSalary));
+  p.salary = Math.round(baseSalary * diff.incomeMultiplier);
+
   // 1. Salvar Snapshot Histórico
   const liquidAssets = p.balance + p.reserve + Object.values(p.investments).reduce((sum, v) => sum + v, 0);
   const debts = p.overdueBills.reduce((sum, b) => sum + (b.totalValue || b.value), 0) +
@@ -2316,6 +2322,52 @@ app.post('/api/admin/approve-income', authenticateToken, requireAdmin, async (re
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Erro ao processar renda extra.' });
+  }
+});
+
+// Aprovar Todas as Rendas Extras Pendentes (Aprovação em lote)
+app.post('/api/admin/approve-all-income', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const list = await db.getParticipants();
+    let countApproved = 0;
+    let countParticipants = 0;
+
+    for (const p of list) {
+      if (p.customExtraIncomePending && p.customExtraIncomePending.length > 0) {
+        let participantUpdated = false;
+        for (const reqInc of p.customExtraIncomePending) {
+          p.balance += reqInc.estimatedReward;
+          p.notifications.unshift({ 
+            type: 'success', 
+            text: `Sua renda extra '${reqInc.name}' foi aprovada em lote! R$ ${reqInc.estimatedReward} creditados.` 
+          });
+          
+          await db.addAuditLog({
+            id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 3),
+            timestamp: new Date().toISOString(),
+            username: req.user.name,
+            action: 'Renda Extra Aprovada',
+            details: `Aprovada renda extra '${reqInc.name}' para ${p.name} via aprovação em lote.`
+          });
+          
+          countApproved++;
+          participantUpdated = true;
+        }
+        if (participantUpdated) {
+          p.customExtraIncomePending = [];
+          await db.saveParticipant(p);
+          countParticipants++;
+        }
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Aprovadas com sucesso todas as ${countApproved} propostas de renda extra pendentes de ${countParticipants} famílias!` 
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro ao aprovar propostas em lote.' });
   }
 });
 

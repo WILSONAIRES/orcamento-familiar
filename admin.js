@@ -3,7 +3,7 @@
  * Lógica do Painel Administrativo (Assíncrona)
  */
 
-import { engine } from './state.js?v=1.4';
+import { engine } from './state.js?v=1.5';
 
 // Safe localStorage wrapper for older iOS Safari (Private Browsing compatibility)
 const safeStorage = {
@@ -145,6 +145,26 @@ export function initAdminView() {
       } finally {
         btnVerifyRanking.disabled = false;
         btnVerifyRanking.textContent = "🔍 Apurar Ranking";
+      }
+    });
+  }
+
+  const btnApproveAllIncome = document.getElementById('btn-admin-approve-all-income');
+  if (btnApproveAllIncome) {
+    btnApproveAllIncome.addEventListener('click', async () => {
+      const confirmAction = confirm("✔️ Deseja aprovar todas as propostas de renda extra/bicos pendentes de uma vez? Isso creditará os respectivos valores para as famílias e removerá as solicitações da fila.");
+      if (!confirmAction) return;
+
+      try {
+        btnApproveAllIncome.disabled = true;
+        const res = await engine.apiCall('/api/admin/approve-all-income', 'POST');
+        alert(res.message || "Propostas aprovadas com sucesso!");
+        await refreshAdminTab('admin-approvals');
+      } catch (err) {
+        console.error(err);
+        alert("Erro ao aprovar propostas: " + err.message);
+      } finally {
+        btnApproveAllIncome.disabled = false;
       }
     });
   }

@@ -621,7 +621,10 @@
               </div>
             </div>
             <div class="approval-box glass-panel">
-              <h3>💰 Propostas de Renda Extra</h3>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3 style="margin:0;">💰 Propostas de Renda Extra</h3>
+                <button id="btn-admin-approve-all-income" class="btn-success btn-small" style="background:#22c55e; color:white; border:none; font-weight:bold; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:0.8rem;">✔️ Aprovar Todas</button>
+              </div>
               <div id="income-approval-list" class="approval-cards-container">
                 <!-- Populado via JS -->
               </div>
@@ -1416,6 +1419,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=1.4" type="module"></script>
+  <script src="app.js?v=1.5" type="module"></script>
 </body>
 </html>
